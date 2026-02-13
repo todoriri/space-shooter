@@ -9,33 +9,45 @@ import { clamp, lerp } from '../../utils/math';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // System function that processes all entities with movement components
-export const MovementSystem = (entities: Record<string, GameEntity>, { time }: { time: { delta: number } }) => {
+export const MovementSystem = (
+  entities: Record<string, GameEntity>,
+  { time }: { time: { delta: number; current: number } }
+) => {
   const deltaTime = Math.min(time.delta, 100) / 1000; // Convert to seconds, cap at 100ms
+  const currentTime = time.current;
 
-  Object.keys(entities).forEach(id => {
-    const entity = entities[id];
-
+  Object.values(entities).forEach(entity => {
     // Skip if entity is not active
     if (!entity.active) return;
 
-    // Handle player movement (touch controls)
-    if (entity.type === EntityType.PLAYER) {
-      handlePlayerMovement(entity, deltaTime);
-    }
+    const position = entity.components.position;
+    const velocity = entity.components.velocity;
 
-    // Handle enemy movement
-    if (entity.type === EntityType.ENEMY) {
-      handleEnemyMovement(entity, deltaTime, time.current);
-    }
+    if (!position || !velocity) return;
 
-    // Handle bullet movement
-    if (entity.type === EntityType.BULLET) {
-      handleBulletMovement(entity, deltaTime);
-    }
+    // Handle movement based on entity type
+    switch (entity.type) {
+      case EntityType.PLAYER:
+        handlePlayerMovement(entity, deltaTime);
+        break;
 
-    // Handle power-up movement
-    if (entity.type === EntityType.POWER_UP) {
-      handlePowerUpMovement(entity, deltaTime);
+      case EntityType.ENEMY:
+        handleEnemyMovement(entity, deltaTime, currentTime);
+        break;
+
+      case EntityType.BULLET:
+        handleBulletMovement(entity, deltaTime);
+        break;
+
+      case EntityType.POWER_UP:
+        handlePowerUpMovement(entity, deltaTime);
+        break;
+
+      default:
+        // Default movement: apply velocity to position
+        position.x += velocity.x * deltaTime;
+        position.y += velocity.y * deltaTime;
+        break;
     }
 
     // Apply screen boundaries
@@ -116,7 +128,7 @@ const handleEnemyMovement = (entity: GameEntity, deltaTime: number, currentTime:
     case EnemyType.DIVING:
       // Diving enemy moves in a sine wave pattern
       position.y += velocity.y * deltaTime;
-      position.x += Math.sin(currentTime * 0.001 + enemyComp.phase || 0) * 100 * deltaTime;
+      position.x += Math.sin(currentTime * 0.001 + (enemyComp.phase || 0)) * 100 * deltaTime;
       break;
 
     case EnemyType.SHOOTING:
@@ -137,8 +149,8 @@ const handleEnemyMovement = (entity: GameEntity, deltaTime: number, currentTime:
 
       // Boss movement pattern
       if (enemyComp.movePattern === 'float') {
-        const floatAmplitude = enemyComp.floatAmplitude || 20;
-        const floatFrequency = enemyComp.floatFrequency || 1;
+        const floatAmplitude = velocity.floatAmplitude || 20;
+        const floatFrequency = velocity.floatFrequency || 1;
         position.x += Math.sin(currentTime * 0.001 * floatFrequency) * floatAmplitude * deltaTime;
         position.y += Math.cos(currentTime * 0.001 * floatFrequency * 0.5) * floatAmplitude * 0.5 * deltaTime;
       }
@@ -215,9 +227,9 @@ const applyScreenBoundaries = (entity: GameEntity) => {
     case EntityType.BULLET:
       // Bullets bounce off walls if they have ricochet
       const bulletComp = entity.components.bullet;
-      if (bulletComp?.ricochet && bulletComp.currentRicochet < (bulletComp.ricochetCount || 1)) {
+      if (bulletComp?.ricochet && (bulletComp.currentRicochet || 0) < (bulletComp.ricochetCount || 1)) {
         if (position.x < 0 || position.x > SCREEN_WIDTH) {
-          velocity.x = -velocity.x;
+          if (velocity) velocity.x = -velocity.x;
           bulletComp.currentRicochet = (bulletComp.currentRicochet || 0) + 1;
           position.x = clamp(position.x, 0, SCREEN_WIDTH);
         }

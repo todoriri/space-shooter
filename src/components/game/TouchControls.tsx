@@ -8,7 +8,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface TouchControlsProps {
   onMove: (direction: { x: number; y: number }) => void;
-  onShoot: () => void;
+  onShoot: (isShooting: boolean) => void;
   onBomb?: () => void;
   onPause?: () => void;
   isPaused?: boolean;
@@ -21,19 +21,8 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
   onPause,
   isPaused = false,
 }) => {
-  // Joystick state
-  const [joystickPosition, setJoystickPosition] = useState({ x: 0, y: 0 });
-  const [isJoystickActive, setIsJoystickActive] = useState(false);
-  const joystickBasePosition = useRef({ x: 80, y: SCREEN_HEIGHT - 120 });
-  const joystickRadius = 60;
-  const joystickKnobRadius = 30;
-
-  // Shoot button state
-  const shootButtonPosition = { x: SCREEN_WIDTH - 100, y: SCREEN_HEIGHT - 100 };
-  const shootButtonRadius = 40;
-
   // Bomb button state (if available)
-  const bombButtonPosition = { x: SCREEN_WIDTH - 100, y: SCREEN_HEIGHT - 180 };
+  const bombButtonPosition = { x: SCREEN_WIDTH - 80, y: SCREEN_HEIGHT - 100 };
   const bombButtonRadius = 35;
 
   // Pause button state
@@ -41,106 +30,54 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
   const pauseButtonRadius = 25;
 
   // Animation values
-  const shootButtonScale = useRef(new Animated.Value(1)).current;
   const bombButtonScale = useRef(new Animated.Value(1)).current;
   const pauseButtonScale = useRef(new Animated.Value(1)).current;
 
-  // Joystick pan responder
-  const joystickPanResponder = useRef(
+  // Touch tracking for 1:1 movement
+  const lastTouchRef = useRef({ x: 0, y: 0 });
+
+  // Full screen pan responder for movement and auto-fire
+  const screenPanResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: (evt) => {
-        setIsJoystickActive(true);
+        const { locationX, locationY } = evt.nativeEvent;
+        lastTouchRef.current = { x: locationX, y: locationY };
+
+        // Start shooting immediately on touch
+        if (onShoot) onShoot(true);
+      },
+      onPanResponderMove: (evt) => {
         const { locationX, locationY } = evt.nativeEvent;
 
-        // Calculate initial joystick position relative to base
-        const relativeX = locationX - joystickBasePosition.current.x;
-        const relativeY = locationY - joystickBasePosition.current.y;
+        // Calculate delta for 1:1 movement
+        const dx = locationX - lastTouchRef.current.x;
+        const dy = locationY - lastTouchRef.current.y;
 
-        // Limit to joystick radius
-        const distance = Math.sqrt(relativeX * relativeX + relativeY * relativeY);
-        const limitedDistance = Math.min(distance, joystickRadius - joystickKnobRadius);
+        lastTouchRef.current = { x: locationX, y: locationY };
 
-        if (distance > 0) {
-          const scale = limitedDistance / distance;
-          setJoystickPosition({
-            x: relativeX * scale,
-            y: relativeY * scale,
-          });
-
-          // Send initial movement direction
-          const direction = {
-            x: relativeX / distance,
-            y: relativeY / distance,
-          };
-          onMove(direction);
-        }
-      },
-      onPanResponderMove: (evt, gestureState) => {
-        const { dx, dy } = gestureState;
-
-        // Calculate new position
-        let newX = joystickPosition.x + dx;
-        let newY = joystickPosition.y + dy;
-
-        // Limit to joystick radius
-        const distance = Math.sqrt(newX * newX + newY * newY);
-        const maxDistance = joystickRadius - joystickKnobRadius;
-
-        if (distance > maxDistance) {
-          const scale = maxDistance / distance;
-          newX *= scale;
-          newY *= scale;
-        }
-
-        setJoystickPosition({ x: newX, y: newY });
-
-        // Calculate normalized direction
-        const currentDistance = Math.sqrt(newX * newX + newY * newY);
-        if (currentDistance > 0) {
-          const direction = {
-            x: newX / currentDistance,
-            y: newY / currentDistance,
-          };
-          onMove(direction);
-        }
+        // Send delta movement
+        onMove({ x: dx, y: dy });
       },
       onPanResponderRelease: () => {
-        setIsJoystickActive(false);
-        setJoystickPosition({ x: 0, y: 0 });
-        onMove({ x: 0, y: 0 }); // Stop movement
+        // Stop shooting on release
+        if (onShoot) onShoot(false);
       },
       onPanResponderTerminate: () => {
-        setIsJoystickActive(false);
-        setJoystickPosition({ x: 0, y: 0 });
-        onMove({ x: 0, y: 0 }); // Stop movement
+        // Stop shooting on interruption
+        if (onShoot) onShoot(false);
       },
     })
   ).current;
 
-  // Shoot button press handler
-  const handleShootPress = () => {
-    // Animate button press
-    Animated.sequence([
-      Animated.timing(shootButtonScale, {
-        toValue: 0.8,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(shootButtonScale, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    onShoot();
-  };
-
   // Bomb button press handler
   const handleBombPress = () => {
-    if (!onBomb) return;
+    console.log('[TouchControls] Bomb button pressed');
+    if (!onBomb) {
+      console.warn('[TouchControls] onBomb prop is missing!');
+      return;
+    }
 
     // Animate button press
     Animated.sequence([
@@ -180,19 +117,18 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     onPause();
   };
 
-  // Shoot button pan responder
-  const shootPanResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onPanResponderGrant: handleShootPress,
-    })
-  ).current;
-
   // Bomb button pan responder
   const bombPanResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true, // Capture touch before background
+      onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
       onPanResponderGrant: handleBombPress,
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderTerminate: () => {
+        // Optional: cancel animation if needed
+      },
     })
   ).current;
 
@@ -200,61 +136,21 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
   const pausePanResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true, // Capture touch before background
+      onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
       onPanResponderGrant: handlePausePress,
+      onPanResponderTerminationRequest: () => false,
     })
   ).current;
 
   return (
     <View style={styles.container} pointerEvents="box-none">
-      {/* Joystick for movement */}
+      {/* Full screen touch area for movement */}
       <View
-        style={[
-          styles.joystickBase,
-          {
-            left: joystickBasePosition.current.x - joystickRadius,
-            top: joystickBasePosition.current.y - joystickRadius,
-            width: joystickRadius * 2,
-            height: joystickRadius * 2,
-          },
-        ]}
-        {...joystickPanResponder.panHandlers}
-      >
-        {/* Joystick base circle */}
-        <View style={styles.joystickBaseCircle} />
-
-        {/* Joystick knob */}
-        <View
-          style={[
-            styles.joystickKnob,
-            {
-              transform: [
-                { translateX: joystickPosition.x },
-                { translateY: joystickPosition.y },
-              ],
-              opacity: isJoystickActive ? 1 : 0.7,
-            },
-          ]}
-        />
-      </View>
-
-      {/* Shoot button */}
-      <Animated.View
-        style={[
-          styles.shootButton,
-          {
-            left: shootButtonPosition.x - shootButtonRadius,
-            top: shootButtonPosition.y - shootButtonRadius,
-            width: shootButtonRadius * 2,
-            height: shootButtonRadius * 2,
-            transform: [{ scale: shootButtonScale }],
-          },
-        ]}
-        {...shootPanResponder.panHandlers}
-      >
-        <View style={styles.shootButtonInner}>
-          <View style={styles.shootIcon} />
-        </View>
-      </Animated.View>
+        style={styles.touchArea}
+        {...screenPanResponder.panHandlers}
+      />
 
       {/* Bomb button (if bomb power-up is available) */}
       {onBomb && (
@@ -301,20 +197,11 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
         )}
       </Animated.View>
 
-      {/* Movement area hint (visible in development) */}
+      {/* Development hints */}
       {__DEV__ && (
         <View style={styles.movementHint}>
           <View style={styles.hintTextContainer}>
-            <Text style={styles.hintText}>Move</Text>
-          </View>
-        </View>
-      )}
-
-      {/* Shoot area hint (visible in development) */}
-      {__DEV__ && (
-        <View style={styles.shootHint}>
-          <View style={styles.hintTextContainer}>
-            <Text style={styles.hintText}>Shoot</Text>
+            <Text style={styles.hintText}>Touch & Drag to Move/Shoot</Text>
           </View>
         </View>
       )}
@@ -332,58 +219,10 @@ const styles = StyleSheet.create({
     pointerEvents: 'box-none',
   },
 
-  // Joystick styles
-  joystickBase: {
-    position: 'absolute',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  joystickBaseCircle: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 100,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  joystickKnob: {
-    position: 'absolute',
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(79, 195, 247, 0.8)',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
-    shadowColor: '#4FC3F7',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-    elevation: 10,
-  },
-
-  // Shoot button styles
-  shootButton: {
-    position: 'absolute',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  shootButtonInner: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 100,
-    backgroundColor: 'rgba(239, 83, 80, 0.3)',
-    borderWidth: 2,
-    borderColor: 'rgba(239, 83, 80, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  shootIcon: {
-    width: 30,
-    height: 30,
-    backgroundColor: '#EF5350',
-    borderRadius: 15,
-    borderWidth: 2,
-    borderColor: '#FFF',
+  // Touch area style
+  touchArea: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1, // Ensure it's reachable but buttons are on top
   },
 
   // Bomb button styles
@@ -391,6 +230,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 10,
+    elevation: 10, // For Android touch handling
   },
   bombButtonInner: {
     width: '100%',
@@ -420,6 +261,7 @@ const styles = StyleSheet.create({
     borderRadius: 100,
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.3)',
+    zIndex: 10,
   },
   pauseIcon: {
     flexDirection: 'row',
@@ -450,19 +292,11 @@ const styles = StyleSheet.create({
   // Development hints
   movementHint: {
     position: 'absolute',
-    left: 20,
+    left: 0,
+    right: 0,
     bottom: 20,
-    padding: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 8,
-  },
-  shootHint: {
-    position: 'absolute',
-    right: 20,
-    bottom: 20,
-    padding: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 8,
+    alignItems: 'center',
+    pointerEvents: 'none',
   },
   hintTextContainer: {
     paddingHorizontal: 12,

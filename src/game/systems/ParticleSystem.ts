@@ -11,16 +11,46 @@ export enum ParticleType {
   POWER_UP_GLOW = 'power_up_glow',
   BULLET_TRAIL = 'bullet_trail',
   SHIELD_EFFECT = 'shield_effect',
+  BOMB_EXPLOSION = 'bomb_explosion',
 }
 
-// ... (skipping ParticleConfig and ParticleEntity interfaces as they seem fine, or I can include them if needed context)
+// Particle configuration for creation
+export interface ParticleConfig {
+  type: ParticleType;
+  duration?: number;
+  size?: number;
+  color?: string;
+  speed?: number;
+  spread?: number;
+  count?: number;
+}
+
+// Particle entity extension
+export interface ParticleEntity extends GameEntity {
+  particleType: ParticleType;
+  age: number;
+  maxAge: number;
+  initialSize?: number;
+  initialColor?: string;
+}
 
 // System function that manages particles
 export const ParticleSystem = (
   entities: Record<string, GameEntity>,
-  { time, dispatch }: { time: { current: number; delta?: number }; dispatch: (event: any) => void }
+  { time, dispatch, events }: { time: { current: number; delta?: number }; dispatch: (event: any) => void; events?: any[] }
 ) => {
   const deltaTime = Math.min(time.delta || 16, 100) / 1000; // Convert to seconds, default to 16ms if undefined
+
+  // Process new events to create particles
+  if (events && events.length > 0) {
+    events.forEach(event => {
+      // Create particles based on event
+      // handleParticleEvent expects immutability but returns new object
+      // usage: entities = handleParticleEvent(event, entities)
+      // Note: This replaces the entities reference locally for this function scope
+      entities = handleParticleEvent(event, entities);
+    });
+  }
 
   // Update existing particles
   Object.keys(entities).forEach(id => {
@@ -35,7 +65,49 @@ export const ParticleSystem = (
   return entities;
 };
 
-// ...
+// Update a single particle
+const updateParticle = (
+  particle: ParticleEntity,
+  deltaTime: number,
+  entities: Record<string, GameEntity>,
+  id: string
+) => {
+  // Update age
+  particle.age += deltaTime;
+
+  // Remove if too old
+  if (particle.age >= particle.maxAge) {
+    // Determine if we should just remove it or reuse it (pooling)
+    // For now, just remove
+    delete entities[id];
+    return;
+  }
+
+  // Update physics
+  const position = particle.components.position;
+  const velocity = particle.components.velocity;
+  const acceleration = particle.components.acceleration;
+
+  if (position && velocity) {
+    // Apply acceleration
+    if (acceleration) {
+      velocity.x += acceleration.x * deltaTime;
+      velocity.y += acceleration.y * deltaTime;
+    }
+
+    // Apply velocity
+    position.x += velocity.x * deltaTime;
+    position.y += velocity.y * deltaTime;
+
+    // Apply rotation based on velocity or spin
+    if (position.rotation !== undefined) {
+      // Optional: rotate particle
+    }
+  }
+
+  // Update appearance
+  updateParticleAppearance(particle, deltaTime);
+};
 
 // Update particle appearance (size, color, opacity)
 const updateParticleAppearance = (particle: ParticleEntity, deltaTime: number) => {
@@ -82,6 +154,33 @@ const updateParticleAppearance = (particle: ParticleEntity, deltaTime: number) =
       // Hit effect pulses white
       const pulse = Math.sin(ageRatio * Math.PI * 10) * 0.5 + 0.5;
       renderable.alpha = 0.8 * pulse;
+      break;
+      break;
+
+    case ParticleType.BOMB_EXPLOSION:
+      // Bomb explosion: Expand massive shockwave, fade out slowly
+      // Color shift: White -> Yellow -> Orange -> Red -> Fade
+      if (ageRatio < 0.1) {
+        renderable.color = '#FFFFFF'; // Flash white
+        renderable.alpha = 1;
+      } else if (ageRatio < 0.3) {
+        renderable.color = '#FFFF00'; // Yellow
+        renderable.alpha = 0.9;
+      } else if (ageRatio < 0.6) {
+        renderable.color = '#FF4500'; // Orange Red
+        renderable.alpha = 0.7;
+      } else {
+        renderable.color = '#8B0000'; // Dark Red
+        renderable.alpha = 0.5 * (1 - ageRatio);
+      }
+
+      // Massive expansion
+      if (position && position.width && position.height && particle.initialSize) {
+        // Expand to 3x initial size over lifetime
+        const scale = 1 + ageRatio * 2;
+        position.width = particle.initialSize * scale;
+        position.height = particle.initialSize * scale;
+      }
       break;
   }
 };
@@ -142,6 +241,48 @@ export const createExplosionEffect = (
   }
 
   return particles;
+};
+
+// Create bomb effect (massive screen-clearing explosion)
+export const createBombEffect = (
+  position: Position,
+  duration: number = 3000,
+  screenSize: { width: number, height: number }
+): ParticleEntity[] => {
+  // 1. The main blast wave
+  const blastParams = {
+    id: `bomb_blast_${Date.now()}`,
+    type: 'particle' as EntityType,
+    active: true,
+    tags: ['particle', 'bomb_blast'],
+    particleType: ParticleType.BOMB_EXPLOSION,
+    age: 0,
+    maxAge: duration / 1000, // Convert to seconds
+    initialSize: screenSize.width * 0.8, // Start large
+    initialColor: '#FFFFFF',
+    components: {
+      position: {
+        x: screenSize.width / 2, // Center of screen
+        y: screenSize.height / 2,
+        width: screenSize.width * 0.8,
+        height: screenSize.width * 0.8, // Circular/Square aspect
+      },
+      renderable: {
+        visible: true,
+        zIndex: 20, // Top layer
+        color: '#FFFFFF',
+        alpha: 1,
+        glowEffect: true,
+        pulseEffect: true,
+        pulseSpeed: 10,
+      },
+    },
+  };
+
+  // 2. Secondary sparkles/debris (optional, keeping it simple for now to ensure performance)
+  // We can add more particles here if needed, but one massive scaling sprite might be enough for the "Nova" effect.
+
+  return [blastParams];
 };
 
 // Create engine trail effect

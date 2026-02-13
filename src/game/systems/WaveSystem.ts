@@ -2,7 +2,7 @@
 // Handles enemy wave progression, difficulty scaling, and boss encounters
 
 import { GameEntity, EntityType, EnemyType } from '../../types';
-import { createEnemyWave } from '../entities/Enemy';
+import { createEnemyWave, createSingleEnemyForWave } from '../entities/Enemy';
 import { createRandomPowerUpDrop } from '../entities/PowerUp';
 
 // Wave configuration
@@ -21,6 +21,7 @@ export interface WaveConfig {
 export interface WaveState {
   currentWave: number;
   enemiesRemaining: number;
+  enemiesToSpawn: number;
   isBossWave: boolean;
   bossSpawned: boolean;
   bossDefeated: boolean;
@@ -28,6 +29,7 @@ export interface WaveState {
   spawnTimer: number;
   waveStartTime: number;
   waveComplete: boolean;
+  intermissionTimer: number; // Time until next wave starts
 }
 
 // Default wave configurations
@@ -83,14 +85,32 @@ const WAVE_CONFIGS: Record<number, WaveConfig> = {
 // System function that manages wave progression
 export const WaveSystem = (
   entities: Record<string, GameEntity>,
-  { time, dispatch }: { time: { current: number }; dispatch: (event: any) => void }
+  { time, dispatch }: { time: { current: number; delta?: number }; dispatch: (event: any) => void }
 ) => {
   const waveState = getWaveState(entities);
   const currentWaveConfig = getWaveConfig(waveState.currentWave);
+  const deltaTime = time.delta || 16.67;
 
   // Check if wave is complete
-  if (waveState.enemiesRemaining <= 0 && !waveState.waveComplete) {
+  if (waveState.enemiesToSpawn <= 0 && waveState.enemiesRemaining <= 0 && !waveState.waveComplete) {
     completeWave(waveState, entities, dispatch);
+    // Don't return here, let the intermission logic run
+  }
+
+  // Handle intermission (between waves)
+  if (waveState.waveComplete) {
+    waveState.intermissionTimer -= deltaTime;
+
+    // Update entity component
+    const waveManager = entities['waveManager']?.components?.waveManager;
+    if (waveManager) {
+      waveManager.intermissionTimer = waveState.intermissionTimer;
+    }
+
+    if (waveState.intermissionTimer <= 0) {
+      startNextWaveInternal(entities, waveState, dispatch);
+    }
+
     return entities;
   }
 
@@ -101,7 +121,7 @@ export const WaveSystem = (
   }
 
   // Handle regular wave spawning
-  if (!waveState.waveComplete && waveState.enemiesRemaining > 0) {
+  if (!waveState.waveComplete && waveState.enemiesToSpawn > 0) {
     handleWaveSpawning(entities, waveState, currentWaveConfig, time.current, dispatch);
   }
 
@@ -133,6 +153,7 @@ const getWaveState = (entities: Record<string, GameEntity>): WaveState => {
     return {
       currentWave: waveManager.currentWave,
       enemiesRemaining,
+      enemiesToSpawn: waveManager.enemiesToSpawn || 0,
       isBossWave: waveManager.isBossWave,
       bossSpawned: waveManager.bossSpawned || bossSpawned,
       bossDefeated: waveManager.bossDefeated || bossDefeated,
@@ -140,14 +161,16 @@ const getWaveState = (entities: Record<string, GameEntity>): WaveState => {
       spawnTimer: waveManager.spawnTimer,
       waveStartTime: waveManager.waveStartTime,
       waveComplete: waveManager.waveComplete,
+      intermissionTimer: waveManager.intermissionTimer || 0,
     };
   }
 
   // If waveManager is missing, create it (Self-healing)
-  console.warn('WaveManager entity missing, recreating...');
+  // console.warn('WaveManager entity missing, recreating...');
 
   const currentWave = 1;
   const isBossWave = false;
+  const initialConfig = getWaveConfig(currentWave);
 
   // Create the entity
   entities['waveManager'] = {
@@ -160,12 +183,14 @@ const getWaveState = (entities: Record<string, GameEntity>): WaveState => {
         currentWave,
         waveComplete: false,
         enemiesRemaining: 0,
+        enemiesToSpawn: initialConfig.enemyCount,
         lastSpawnTime: 0,
         isBossWave,
         bossSpawned: false,
         bossDefeated: false,
         spawnTimer: 0,
         waveStartTime: Date.now(),
+        intermissionTimer: 0,
       }
     }
   };
@@ -173,6 +198,7 @@ const getWaveState = (entities: Record<string, GameEntity>): WaveState => {
   return {
     currentWave,
     enemiesRemaining: 0,
+    enemiesToSpawn: initialConfig.enemyCount,
     isBossWave,
     bossSpawned: false,
     bossDefeated: false,
@@ -180,6 +206,7 @@ const getWaveState = (entities: Record<string, GameEntity>): WaveState => {
     spawnTimer: 0,
     waveStartTime: Date.now(),
     waveComplete: false,
+    intermissionTimer: 0,
   };
 };
 
@@ -218,6 +245,12 @@ const handleWaveSpawning = (
   // Initialize last spawn time if not set
   if (waveState.lastSpawnTime === 0) {
     waveState.lastSpawnTime = currentTime;
+
+    // Persist to entity component
+    const waveManager = entities['waveManager']?.components?.waveManager;
+    if (waveManager) {
+      waveManager.lastSpawnTime = waveState.lastSpawnTime;
+    }
     return;
   }
 
@@ -228,8 +261,19 @@ const handleWaveSpawning = (
     const enemy = spawnEnemy(waveConfig, entities, dispatch);
     if (enemy) {
       entities[enemy.id] = enemy;
-      waveState.enemiesRemaining--;
+
+      // Update local state for this loop pass
+      waveState.enemiesToSpawn--; // Decrement enemiesToSpawn
+      waveState.enemiesRemaining++; // Increment enemiesRemaining as an enemy is spawned
       waveState.lastSpawnTime = currentTime;
+
+      // Persist to entity component
+      const waveManager = entities['waveManager']?.components?.waveManager;
+      if (waveManager) {
+        waveManager.enemiesToSpawn = waveState.enemiesToSpawn; // Persist enemiesToSpawn
+        waveManager.enemiesRemaining = waveState.enemiesRemaining; // Persist enemiesRemaining
+        waveManager.lastSpawnTime = waveState.lastSpawnTime;
+      }
 
       // Dispatch spawn event
       dispatch({
@@ -252,24 +296,12 @@ const spawnEnemy = (
   // Get screen width from entities or use default
   const screenWidth = 400; // Default, would come from game state
 
-  // Create enemy wave (single enemy)
-  const enemies = createEnemyWave(waveConfig.waveNumber, screenWidth, waveConfig.difficultyMultiplier);
-  if (enemies.length === 0) return null;
-
-  const enemy = enemies[0];
-
-  // Apply difficulty multiplier to health
-  if (enemy.components.health) {
-    enemy.components.health.current *= waveConfig.difficultyMultiplier;
-    enemy.components.health.max *= waveConfig.difficultyMultiplier;
-  }
-
-  // Apply difficulty multiplier to score value
-  if (enemy.components.enemy) {
-    enemy.components.enemy.scoreValue = Math.floor(
-      enemy.components.enemy.scoreValue * waveConfig.difficultyMultiplier
-    );
-  }
+  // Create single enemy
+  const enemy = createSingleEnemyForWave(
+    waveConfig.waveNumber,
+    screenWidth,
+    waveConfig.difficultyMultiplier
+  );
 
   return enemy;
 };
@@ -288,8 +320,13 @@ const spawnBossWave = (
   if (bossWave.length > 0) {
     const boss = bossWave[0];
     entities[boss.id] = boss;
-    waveState.bossSpawned = true;
-    waveState.enemiesRemaining = 1;
+
+    // Update persistent state object - VERY IMPORTANT
+    const waveManager = entities['waveManager']?.components?.waveManager;
+    if (waveManager) {
+      waveManager.bossSpawned = true;
+      waveManager.enemiesRemaining = 1;
+    }
 
     // Dispatch boss spawn event
     dispatch({
@@ -299,13 +336,6 @@ const spawnBossWave = (
         bossType: waveConfig.bossType,
       },
     });
-
-    // Update wave manager state
-    const waveManager = entities['waveManager']?.components?.waveManager;
-    if (waveManager) {
-      waveManager.bossSpawned = true;
-      waveManager.enemiesRemaining = 1;
-    }
   }
 };
 
@@ -315,11 +345,11 @@ const completeWave = (waveState: WaveState, entities: Record<string, GameEntity>
   const waveManager = entities['waveManager']?.components?.waveManager;
   if (waveManager) {
     waveManager.waveComplete = true;
-    console.log(`Wave ${waveState.currentWave} marked as complete`);
+    waveManager.intermissionTimer = 3000; // 3 seconds intermission
+    console.log(`Wave ${waveState.currentWave} marked as complete, starting intermission`);
   } else {
     console.error('WaveManager missing during completeWave');
   }
-
 
   // Dispatch wave complete event
   dispatch({
@@ -342,35 +372,34 @@ const completeWave = (waveState: WaveState, entities: Record<string, GameEntity>
   }
 };
 
-// Start next wave
-export const startNextWave = (
-  currentWave: number,
+// Start next wave (Internal helper, not exported for GameEngine use anymore)
+const startNextWaveInternal = (
   entities: Record<string, GameEntity>,
+  lastWaveState: WaveState,
   dispatch: (event: any) => void
-): Record<string, GameEntity> => {
-  const nextWave = currentWave + 1;
+) => {
+  const nextWave = lastWaveState.currentWave + 1;
   const waveConfig = getWaveConfig(nextWave);
 
-  // Clear existing enemies (except player)
-  const newEntities: Record<string, GameEntity> = {};
-  Object.entries(entities).forEach(([id, entity]) => {
-    if (entity.type === EntityType.PLAYER) {
-      newEntities[id] = entity;
-    }
-  });
+  console.log(`Starting Wave ${nextWave}`);
 
-  // Initialize wave state
-  const waveState: WaveState = {
-    currentWave: nextWave,
-    enemiesRemaining: waveConfig.enemyCount,
-    isBossWave: waveConfig.bossWave,
-    bossSpawned: false,
-    bossDefeated: false,
-    lastSpawnTime: 0,
-    spawnTimer: 0,
-    waveStartTime: Date.now(),
-    waveComplete: false,
-  };
+  // We do NOT clear entities here. The GameEngine/ECS handles cleanup of dead entities.
+  // We just reset the WaveManager state.
+
+  const waveManager = entities['waveManager']?.components?.waveManager;
+  if (waveManager) {
+    waveManager.currentWave = nextWave;
+    waveManager.waveComplete = false;
+    waveManager.enemiesRemaining = 0;
+    waveManager.enemiesToSpawn = waveConfig.enemyCount;
+    waveManager.isBossWave = waveConfig.bossWave;
+    waveManager.bossSpawned = false;
+    waveManager.bossDefeated = false;
+    waveManager.spawnTimer = 0;
+    waveManager.waveStartTime = Date.now();
+    waveManager.lastSpawnTime = 0;
+    waveManager.intermissionTimer = 0;
+  }
 
   // Dispatch wave start event
   dispatch({
@@ -381,8 +410,6 @@ export const startNextWave = (
       enemyCount: waveConfig.enemyCount,
     },
   });
-
-  return newEntities;
 };
 
 // Check if wave is in progress
@@ -438,16 +465,18 @@ export const spawnPowerUpDrop = (
   // Check if power-up should drop
   if (Math.random() < chance) {
     const powerUp = createRandomPowerUpDrop(position);
-    updatedEntities[powerUp.id] = powerUp;
+    if (powerUp) {
+      updatedEntities[powerUp.id] = powerUp;
 
-    // Dispatch power-up drop event
-    dispatch({
-      type: 'powerUpDrop',
-      data: {
-        position,
-        powerUpType: powerUp.components.powerUp?.type,
-      },
-    });
+      // Dispatch power-up drop event
+      dispatch({
+        type: 'powerUpDrop',
+        data: {
+          position,
+          powerUpType: powerUp.components.powerUp?.type,
+        },
+      });
+    }
   }
 
   return updatedEntities;

@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="NONE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="67a12ec0-ccec-4f67-9313-a577fff42ffd" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/space-shooter.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/space-shooter.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/App.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/App.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/game/TouchControls.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/game/TouchControls.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/game/GameEngine.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/GameEngine.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/game/entities/Enemy.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/entities/Enemy.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/game/entities/Player.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/entities/Player.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/game/systems/CollisionSystem.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/systems/CollisionSystem.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/game/systems/CollisionSystemV2.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/systems/CollisionSystemV2.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/game/systems/MovementSystem.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/systems/MovementSystem.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/game/systems/MovementSystemV2.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/systems/MovementSystemV2.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/game/systems/ParticleSystem.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/systems/ParticleSystem.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/game/systems/PlayerSystem.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/systems/PlayerSystem.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/game/systems/RenderingSystem.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/systems/RenderingSystem.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/game/systems/WaveSystem.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/systems/WaveSystem.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/types/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/types/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/utils/AssetManager.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/AssetManager.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/utils/AudioManager.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/AudioManager.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/utils/MobileLifecycleManager.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/MobileLifecycleManager.tsx" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ClangdSettings">
+    <option name="formatViaClangd" value="false" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;customColor&quot;: &quot;&quot;,
+  &quot;associatedIndex&quot;: 3
+}</component>
+  <component name="ProjectId" id="39d7dyOVm6Hnn1IIA7E7NiYRQiQ" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "cf.first.check.clang-format": "false",
+    "cidr.known.project.marker": "true",
+    "git-widget-placeholder": "v1",
+    "kotlin-language-version-configured": "true"
+  }
+}]]></component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="67a12ec0-ccec-4f67-9313-a577fff42ffd" name="Changes" comment="" />
+      <created>1771014187409</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1771014187409</updated>
+    </task>
+    <servers />
+  </component>
+</project>

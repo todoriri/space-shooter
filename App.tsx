@@ -53,10 +53,12 @@ export default function App() {
       performanceMonitor.startMonitoring();
 
       // 3. Load essential assets with progress tracking
-      await assetManager.loadEssentialAssets();
+      await assetManager.loadEssentialAssets((progress) => {
+        setLoadProgress(progress);
+      });
 
       // 4. Preload remaining assets in background
-      assetManager.preloadAssets('game');
+      assetManager.preloadAssets('audio');
 
       // 5. Set up lifecycle callbacks
       setupLifecycleCallbacks();

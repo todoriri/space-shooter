@@ -12,7 +12,6 @@ export const createPlayerEntity = (initialPosition: Position = { x: 200, y: 500 
     id: playerId,
     type: EntityType.PLAYER,
     active: true,
-    tags: ['player', 'controllable', 'destructible'],
     components: {
       position: {
         ...initialPosition,
@@ -56,7 +55,7 @@ export const createPlayerEntity = (initialPosition: Position = { x: 200, y: 500 
         alpha: 1,
       },
     },
-    tags: ['player', 'controllable', 'shooter'],
+    tags: ['player', 'controllable', 'destructible', 'shooter'],
   };
 };
 
@@ -108,7 +107,7 @@ export const damagePlayer = (player: GameEntity, damage: number): GameEntity => 
     ...health,
     current: newHealth,
     invulnerable: true,
-    invulnerableTimer: 1.0, // 1 second of invulnerability
+    invulnerableTimer: 1000, // 1 second of invulnerability in ms
   };
 
   // Decrease lives if health reaches 0
@@ -289,7 +288,7 @@ export const resetPlayer = (player: GameEntity, position: Position): GameEntity 
         ...player.components.health,
         current: 100,
         invulnerable: true,
-        invulnerableTimer: 2.0, // 2 seconds of invulnerability after respawn
+        invulnerableTimer: 2000, // 2 seconds of invulnerability after respawn in ms
       },
       player: {
         ...player.components.player,

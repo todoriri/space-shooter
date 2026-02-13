@@ -1,5 +1,6 @@
 import { GameEntity, EntityType, BulletType } from '../../types';
 import { createBulletEntity } from '../entities/Bullet';
+import { createBombEffect } from './ParticleSystem';
 
 // Input state interface
 export interface InputState {
@@ -30,6 +31,15 @@ export const PlayerSystem = (
 
     const playerComp = player.components.player;
     const position = player.components.position;
+    const health = player.components.health;
+
+    // Handle invulnerability timer reset
+    if (health?.invulnerable) {
+        if (!health.invulnerableTimer || currentTime > health.invulnerableTimer) {
+            health.invulnerable = false;
+            health.invulnerableTimer = undefined;
+        }
+    }
 
     // 1. Handle Movement
     if (input.move.x !== 0 || input.move.y !== 0) {
@@ -106,13 +116,78 @@ export const PlayerSystem = (
 
     // 3. Handle Bomb
     if (input.bomb) {
-        // TODO: Implement bomb logic or dispatch event
-        if (!playerComp.activePowerUps?.some(p => p.type === 'bomb')) {
-            // Check if has bomb charge or powerup
+        console.log('[PlayerSystem] Bomb input detected');
+        const now = Date.now();
+        const cooldown = (playerComp.bombCooldown || 20) * 1000;
+        const timeSinceLast = now - (playerComp.lastBombTime || 0);
+
+        console.log(`[PlayerSystem] Bomb cooldown check: ${timeSinceLast}ms / ${cooldown}ms`);
+
+        if (timeSinceLast >= cooldown) {
+            console.log('[PlayerSystem] Firing Bomb!');
+            // Trigger Bomb
+            playerComp.lastBombTime = now;
+
+            // Create Bomb Entity (persistent area of effect)
+            const bombId = `bomb_${now}`;
+            const screenWidth = 400;
+            const screenHeight = 800;
+            const bombSize = screenWidth * 0.8;
+
+            entities[bombId] = {
+                id: bombId,
+                type: EntityType.BULLET, // Treat as a massive bullet
+                active: true,
+                tags: ['bomb', 'player_bullet'],
+                components: {
+                    position: {
+                        x: (screenWidth - bombSize) / 2, // Center horizontally
+                        y: (screenHeight - bombSize) / 2, // Center vertically
+                        width: bombSize,
+                        height: bombSize,
+                        rotation: 0
+                    },
+                    velocity: {
+                        x: 0,
+                        y: 0
+                    },
+                    bullet: {
+                        type: BulletType.PLAYER,
+                        damage: 1000, // Massive damage
+                        pierce: 9999, // Infinite pierce
+                        currentPierce: 9999,
+                        ownerId: player.id,
+                        lifetime: 3000, // 3 seconds
+                        age: 0
+                    },
+                    renderable: {
+                        visible: false, // Visuals handled by ParticleSystem
+                        zIndex: 10,
+                        color: '#FFFFFF',
+                        alpha: 0
+                    }
+                }
+            };
+
+            // DIRECTLY ADD BOMB PARTICLES
+            // This prevents needing to round-trip through GameEngine and setEntities
+            const bombParticles = createBombEffect(
+                { x: (screenWidth - bombSize) / 2, y: (screenHeight - bombSize) / 2 },
+                3000,
+                { width: screenWidth, height: screenHeight }
+            );
+
+            bombParticles.forEach(p => {
+                entities[p.id] = p;
+            });
+
+            dispatch({
+                type: 'playerBomb',
+                data: { position: { x: position.x, y: position.y } }
+            });
         }
 
-        dispatch({ type: 'playerBomb' });
-        input.bomb = false; // Bomb is single trigger
+        input.bomb = false; // Reset input triggers
     }
 
     return entities;

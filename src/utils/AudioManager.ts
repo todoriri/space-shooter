@@ -301,8 +301,8 @@ class AudioManager {
   // Get adjusted volume based on type and master volume
   private getAdjustedVolume(volume: number, type: AudioFileType): number {
     const typeVolume = type === 'music' ? this.musicVolume :
-                      type === 'sfx' ? this.sfxVolume :
-                      this.uiVolume;
+      type === 'sfx' ? this.sfxVolume :
+        this.uiVolume;
 
     return volume * typeVolume * this.masterVolume;
   }
@@ -359,69 +359,75 @@ class AudioManager {
 // Export singleton instance
 export const audioManager = AudioManager.getInstance();
 
+import { assetManager } from './AssetManager';
+
 // Game-specific audio functions
 export const GameAudio = {
   // Preload all game sounds
   async preloadGameSounds(): Promise<void> {
-    // This would load actual sound files
-    // For now, we'll create a placeholder
-    console.log('Preloading game sounds...');
+    // Assets are preloaded by AssetManager in App.tsx
+    console.log('Game sounds managed by AssetManager');
   },
 
   // Play background music
   playBackgroundMusic(): void {
-    audioManager.playMusic('bgm_space', { volume: 0.6 });
+    const music = assetManager.playSound('bgm_game', { volume: 0.3, loop: true });
+    if (!music) {
+      // Fallback or log
+      console.warn('Failed to play bgm_game');
+    }
   },
 
   // Play player shoot sound
   playPlayerShoot(): void {
-    audioManager.playSound('sfx_player_shoot', { volume: 0.7 });
+    assetManager.playSound('shoot_player', { volume: 0.7 });
   },
 
   // Play enemy shoot sound
   playEnemyShoot(): void {
-    audioManager.playSound('sfx_enemy_shoot', { volume: 0.6 });
+    assetManager.playSound('shoot_enemy', { volume: 0.6 });
   },
 
   // Play explosion sound
   playExplosion(): void {
-    audioManager.playSound('sfx_explosion', { volume: 0.8 });
+    assetManager.playSound('explosion_small', { volume: 0.8 });
   },
 
   // Play power-up collect sound
   playPowerUpCollect(): void {
-    audioManager.playSound('sfx_powerup_collect', { volume: 0.7 });
+    assetManager.playSound('powerup_collect', { volume: 0.7 });
   },
 
   // Play player hit sound
   playPlayerHit(): void {
-    audioManager.playSound('sfx_player_hit', { volume: 0.8 });
+    assetManager.playSound('player_hit', { volume: 0.8 });
   },
 
   // Play game over sound
   playGameOver(): void {
-    audioManager.playSound('sfx_game_over', { volume: 0.7 });
+    assetManager.playSound('game_over', { volume: 0.7 });
   },
 
   // Play menu select sound
   playMenuSelect(): void {
-    audioManager.playSound('ui_menu_select', { volume: 0.6 });
+    // No specific UI sound in AssetManager, reusing powerup for feedback or silent
+    // assetManager.playSound('ui_menu_select', { volume: 0.6 }); 
   },
 
   // Play menu confirm sound
   playMenuConfirm(): void {
-    audioManager.playSound('ui_menu_confirm', { volume: 0.6 });
+    // No specific UI sound in AssetManager
   },
 
   // Stop all game sounds
   stopAllGameSounds(): void {
-    audioManager.stopAll();
+    assetManager.stopSound('bgm_game');
+    // Add others if strictly needed, but fire-and-forget SFX usually finish themselves
   },
 
   // Set game audio volumes
   setGameVolumes(music: number, sfx: number, ui: number): void {
-    audioManager.setMusicVolume(music);
-    audioManager.setSfxVolume(sfx);
-    audioManager.setUiVolume(ui);
+    // AssetManager handles global volume, specifics would need individual control implementation
+    assetManager.setSoundVolume(sfx); // rudimentary mapping
   },
 };

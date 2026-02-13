@@ -38,7 +38,16 @@ export interface PlayerComponent {
   activePowerUps?: ActivePowerUp[];
   score: number;
   lives: number;
+  bombCount?: number;
+  shieldActive?: boolean;
+  shieldEndTime?: number;
+  rapidFireActive?: boolean;
+  rapidFireEndTime?: number;
+  multiShotActive?: boolean;
+  multiShotEndTime?: number;
   touchPosition?: Position;
+  lastBombTime?: number;
+  bombCooldown?: number;
 }
 
 export interface EnemyComponent {
@@ -86,12 +95,14 @@ export interface WaveManagerComponent {
   currentWave: number;
   waveComplete: boolean;
   enemiesRemaining: number;
+  enemiesToSpawn: number;
   lastSpawnTime: number;
   isBossWave: boolean;
   bossSpawned: boolean;
   bossDefeated: boolean;
   spawnTimer: number;
   waveStartTime: number;
+  intermissionTimer?: number;
 }
 
 export interface Collider {
@@ -216,7 +227,8 @@ export type GameEventType =
   | 'playerHit'
   | 'gameOver'
   | 'waveComplete'
-  | 'bossSpawn';
+  | 'bossSpawn'
+  | 'playerBomb';
 
 export interface GameEvent {
   type: GameEventType;

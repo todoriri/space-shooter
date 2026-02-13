@@ -1,7 +1,7 @@
 // Collision System for Entity-Component-System architecture
 // Uses spatial partitioning for efficient collision detection
 
-import { GameEntity, BoundingBox } from '../../types';
+import { GameEntity, BoundingBox, BulletType, PowerUpType } from '../../types';
 import { checkAABBCollision, getBoundingBox, SpatialGrid } from '../../utils/collision';
 
 // Collision types
@@ -39,31 +39,40 @@ export const CollisionSystem = (
   // First pass: insert all entities into spatial grid
   Object.keys(entities).forEach(id => {
     const entity = entities[id];
-    if (!entity.active) return;
+    if (!entity.active || !entity.components.position) return;
 
-    const bounds = getBoundingBox(entity.position, entity.size);
+    const position = entity.components.position;
+    const bounds = getBoundingBox(position, {
+      width: position.width || 0,
+      height: position.height || 0
+    });
     spatialGrid.insert(id, bounds);
   });
 
-  // Second pass: check for collisions using spatial grid
+  // Second pass: check for collisions
   Object.keys(entities).forEach(id => {
     const entity = entities[id];
-    if (!entity.active) return;
+    if (!entity.active || !entity.components.position) return;
 
-    const bounds = getBoundingBox(entity.position, entity.size);
+    const position = entity.components.position;
+    const bounds = getBoundingBox(position, {
+      width: position.width || 0,
+      height: position.height || 0
+    });
     const potentialCollisions = spatialGrid.getPotentialCollisions(id, bounds);
 
     potentialCollisions.forEach(otherId => {
       const otherEntity = entities[otherId];
-      if (!otherEntity.active) return;
+      if (!otherEntity.active || !otherEntity.components.position) return;
 
-      const otherBounds = getBoundingBox(otherEntity.position, otherEntity.size);
+      const otherPosition = otherEntity.components.position;
+      const otherBounds = getBoundingBox(otherPosition, {
+        width: otherPosition.width || 0,
+        height: otherPosition.height || 0
+      });
 
-      // Check if bounding boxes overlap
       if (checkAABBCollision(bounds, otherBounds)) {
-        // Determine collision type
         const collisionType = getCollisionType(entity.type, otherEntity.type);
-
         if (collisionType) {
           collisions.push({
             type: collisionType,
@@ -79,7 +88,6 @@ export const CollisionSystem = (
     });
   });
 
-  // Process collisions and dispatch events
   collisions.forEach(collision => {
     handleCollision(collision, entities, time.current, dispatch);
   });
@@ -94,7 +102,7 @@ const getCollisionType = (type1: string, type2: string): CollisionType | null =>
   switch (types) {
     case 'enemy-player':
       return 'player-enemy';
-    case 'powerUp-player':
+    case 'player-powerUp':
       return 'player-powerUp';
     case 'bullet-enemy':
       return 'bullet-enemy';
@@ -118,6 +126,8 @@ const handleCollision = (
   const entity1Obj = entities[entity1];
   const entity2Obj = entities[entity2];
 
+  if (!entity1Obj || !entity2Obj) return;
+
   switch (type) {
     case 'player-enemy':
       handlePlayerEnemyCollision(entity1Obj, entity2Obj, position, currentTime, dispatch);
@@ -136,7 +146,6 @@ const handleCollision = (
       break;
 
     case 'enemy-enemy':
-      // Enemies bounce off each other
       handleEnemyEnemyCollision(entity1Obj, entity2Obj);
       break;
   }
@@ -144,65 +153,55 @@ const handleCollision = (
 
 // Player-Enemy collision
 const handlePlayerEnemyCollision = (
-  player: any,
-  enemy: any,
+  player: GameEntity,
+  enemy: GameEntity,
   position: { x: number; y: number },
   currentTime: number,
   dispatch: (event: any) => void
 ) => {
-  // Check if player is invulnerable (e.g., after hit or shield)
-  if (player.invulnerable && player.invulnerableUntil > currentTime) {
+  const playerHealth = player.components.health;
+  const enemyHealth = enemy.components.health;
+
+  if (!playerHealth) return;
+
+  if (playerHealth.invulnerable && (playerHealth.invulnerableTimer || 0) > currentTime) {
     return;
   }
 
   // Player takes damage
-  const damage = enemy.damage || 10;
-  player.health = Math.max(0, player.health - damage);
+  const damage = 10;
+  playerHealth.current = Math.max(0, playerHealth.current - damage);
+  playerHealth.invulnerable = true;
+  playerHealth.invulnerableTimer = currentTime + 1000;
 
-  // Make player invulnerable briefly
-  player.invulnerable = true;
-  player.invulnerableUntil = currentTime + 1000; // 1 second invulnerability
-
-  // Enemy takes damage (if it can be damaged by collision)
-  if (enemy.health !== undefined) {
-    const enemyDamage = player.collisionDamage || 5;
-    enemy.health = Math.max(0, enemy.health - enemyDamage);
+  if (enemyHealth) {
+    enemyHealth.current = 0;
   }
 
-  // Dispatch collision event
   dispatch({
     type: 'collision',
     data: {
       collisionType: 'player-enemy',
       position,
       damage,
-      playerHealth: player.health,
-      enemyHealth: enemy.health,
+      playerHealth: playerHealth.current,
     },
   });
 
-  // If player health reaches 0
-  if (player.health <= 0) {
-    dispatch({
-      type: 'playerHit',
-      data: { position, fatal: true },
-    });
+  if (playerHealth.current <= 0) {
+    dispatch({ type: 'gameOver', data: { reason: 'noLives' } });
   } else {
-    dispatch({
-      type: 'playerHit',
-      data: { position, fatal: false },
-    });
+    dispatch({ type: 'playerHit', data: { position, fatal: false } });
   }
 
-  // If enemy health reaches 0
-  if (enemy.health <= 0) {
+  if (enemyHealth && enemyHealth.current <= 0) {
     enemy.active = false;
     dispatch({
       type: 'enemyDestroyed',
       data: {
         position,
-        enemyType: enemy.enemyType,
-        points: enemy.points || 100,
+        enemyType: enemy.components.enemy?.type,
+        points: enemy.components.enemy?.scoreValue || 100,
       },
     });
   }
@@ -210,13 +209,16 @@ const handlePlayerEnemyCollision = (
 
 // Player-PowerUp collision
 const handlePlayerPowerUpCollision = (
-  player: any,
-  powerUp: any,
+  player: GameEntity,
+  powerUp: GameEntity,
   position: { x: number; y: number },
   dispatch: (event: any) => void
 ) => {
+  const powerUpComp = powerUp.components.powerUp;
+  if (!powerUpComp) return;
+
   // Apply power-up effect
-  applyPowerUpEffect(player, powerUp.powerUpType);
+  applyPowerUpEffect(player, powerUpComp.type);
 
   // Deactivate power-up
   powerUp.active = false;
@@ -226,26 +228,31 @@ const handlePlayerPowerUpCollision = (
     type: 'powerUpCollect',
     data: {
       position,
-      powerUpType: powerUp.powerUpType,
-      duration: powerUp.duration || 10000,
+      powerUpType: powerUpComp.type,
+      duration: powerUpComp.duration || 10000,
     },
   });
 };
 
 // Bullet-Enemy collision
 const handleBulletEnemyCollision = (
-  bullet: any,
-  enemy: any,
+  bullet: GameEntity,
+  enemy: GameEntity,
   position: { x: number; y: number },
   dispatch: (event: any) => void
 ) => {
-  // Skip if bullet doesn't damage enemies or enemy is invulnerable
-  if (bullet.bulletType !== 'player' && bullet.bulletType !== 'special') return;
-  if (enemy.invulnerable) return;
+  const bulletComp = bullet.components.bullet;
+  const enemyHealth = enemy.components.health;
+  const enemyComp = enemy.components.enemy;
+
+  if (!bulletComp || !enemyHealth) return;
+
+  // Skip if bullet doesn't damage enemies
+  if (bulletComp.type !== BulletType.PLAYER) return;
 
   // Apply damage
-  const damage = bullet.damage || 25;
-  enemy.health = Math.max(0, enemy.health - damage);
+  const damage = bulletComp.damage || 25;
+  enemyHealth.current = Math.max(0, enemyHealth.current - damage);
 
   // Deactivate bullet
   bullet.active = false;
@@ -257,19 +264,19 @@ const handleBulletEnemyCollision = (
       collisionType: 'bullet-enemy',
       position,
       damage,
-      enemyHealth: enemy.health,
+      enemyHealth: enemyHealth.current,
     },
   });
 
   // If enemy is destroyed
-  if (enemy.health <= 0) {
+  if (enemyHealth.current <= 0) {
     enemy.active = false;
     dispatch({
       type: 'enemyDestroyed',
       data: {
         position,
-        enemyType: enemy.enemyType,
-        points: enemy.points || 100,
+        enemyType: enemyComp?.type,
+        points: enemyComp?.scoreValue || 100,
       },
     });
   }
@@ -277,22 +284,27 @@ const handleBulletEnemyCollision = (
 
 // Bullet-Player collision (enemy bullets hitting player)
 const handleBulletPlayerCollision = (
-  bullet: any,
-  player: any,
+  bullet: GameEntity,
+  player: GameEntity,
   position: { x: number; y: number },
   currentTime: number,
   dispatch: (event: any) => void
 ) => {
+  const bulletComp = bullet.components.bullet;
+  const playerHealth = player.components.health;
+
+  if (!bulletComp || !playerHealth) return;
+
   // Skip if player is invulnerable
-  if (player.invulnerable && player.invulnerableUntil > currentTime) return;
+  if (playerHealth.invulnerable && (playerHealth.invulnerableTimer || 0) > currentTime) return;
 
   // Apply damage
-  const damage = bullet.damage || 20;
-  player.health = Math.max(0, player.health - damage);
+  const damage = bulletComp.damage || 20;
+  playerHealth.current = Math.max(0, playerHealth.current - damage);
 
   // Make player invulnerable briefly
-  player.invulnerable = true;
-  player.invulnerableUntil = currentTime + 1000;
+  playerHealth.invulnerable = true;
+  playerHealth.invulnerableTimer = currentTime + 1000;
 
   // Deactivate bullet
   bullet.active = false;
@@ -304,76 +316,92 @@ const handleBulletPlayerCollision = (
       collisionType: 'bullet-player',
       position,
       damage,
-      playerHealth: player.health,
+      playerHealth: playerHealth.current,
     },
   });
 
   dispatch({
     type: 'playerHit',
-    data: { position, fatal: player.health <= 0 },
+    data: { position, fatal: playerHealth.current <= 0 },
   });
 };
 
 // Enemy-Enemy collision (bounce off each other)
-const handleEnemyEnemyCollision = (enemy1: any, enemy2: any) => {
+const handleEnemyEnemyCollision = (enemy1: GameEntity, enemy2: GameEntity) => {
+  const pos1 = enemy1.components.position;
+  const pos2 = enemy2.components.position;
+  const vel1 = enemy1.components.velocity;
+  const vel2 = enemy2.components.velocity;
+
+  if (!pos1 || !pos2 || !vel1 || !vel2) return;
+
   // Simple bounce: reverse velocities
-  const tempVel = { ...enemy1.velocity };
-  enemy1.velocity = { ...enemy2.velocity };
-  enemy2.velocity = tempVel;
+  const tempVel = { x: vel1.x, y: vel1.y };
+  vel1.x = vel2.x;
+  vel1.y = vel2.y;
+  vel2.x = tempVel.x;
+  vel2.y = tempVel.y;
 
   // Move them apart slightly
-  const dx = enemy2.position.x - enemy1.position.x;
-  const dy = enemy2.position.y - enemy1.position.y;
+  const dx = pos2.x - pos1.x;
+  const dy = pos2.y - pos1.y;
   const distance = Math.sqrt(dx * dx + dy * dy);
 
+  const width1 = pos1.width || 20;
+  const width2 = pos2.width || 20;
+
   if (distance > 0) {
-    const overlap = (enemy1.size.width + enemy2.size.width) / 2 - distance;
+    const overlap = (width1 + width2) / 2 - distance;
     if (overlap > 0) {
       const moveX = (dx / distance) * overlap * 0.5;
       const moveY = (dy / distance) * overlap * 0.5;
 
-      enemy1.position.x -= moveX;
-      enemy1.position.y -= moveY;
-      enemy2.position.x += moveX;
-      enemy2.position.y += moveY;
+      pos1.x -= moveX;
+      pos1.y -= moveY;
+      pos2.x += moveX;
+      pos2.y += moveY;
     }
   }
 };
 
 // Apply power-up effect to player
-const applyPowerUpEffect = (player: any, powerUpType: string) => {
+const applyPowerUpEffect = (player: GameEntity, powerUpType: string) => {
+  const playerComp = player.components.player;
+  if (!playerComp) return;
+
   const currentTime = Date.now();
 
   switch (powerUpType) {
     case 'shield':
-      player.shieldActive = true;
-      player.shieldEndTime = currentTime + 10000; // 10 seconds
+      playerComp.shieldActive = true;
+      playerComp.shieldEndTime = currentTime + 10000;
       break;
 
     case 'rapidFire':
-      player.rapidFireActive = true;
-      player.rapidFireEndTime = currentTime + 8000; // 8 seconds
-      player.shootCooldown = 100; // Reduced from 300ms
+      playerComp.rapidFireActive = true;
+      playerComp.rapidFireEndTime = currentTime + 8000;
+      playerComp.shootCooldown = 100;
       break;
 
     case 'multiShot':
-      player.multiShotActive = true;
-      player.multiShotEndTime = currentTime + 12000; // 12 seconds
+      playerComp.multiShotActive = true;
+      playerComp.multiShotEndTime = currentTime + 12000;
       break;
 
     case 'bomb':
       // Screen-clearing bomb effect handled elsewhere
-      player.bombCount = (player.bombCount || 0) + 1;
+      playerComp.bombCount = (playerComp.bombCount || 0) + 1;
       break;
   }
 
   // Add to player's active power-ups
-  if (!player.activePowerUps) player.activePowerUps = [];
-  player.activePowerUps.push({
-    type: powerUpType,
+  if (!playerComp.activePowerUps) playerComp.activePowerUps = [];
+  playerComp.activePowerUps.push({
+    type: powerUpType as PowerUpType,
     endTime: currentTime + (powerUpType === 'shield' ? 10000 :
-                          powerUpType === 'rapidFire' ? 8000 :
-                          powerUpType === 'multiShot' ? 12000 : 0),
+      powerUpType === 'rapidFire' ? 8000 :
+        powerUpType === 'multiShot' ? 12000 : 0),
+    effectApplied: true,
   });
 };
 
@@ -390,26 +418,27 @@ export const createCollisionComponent = (
 
 // Check if entity is off-screen (for cleanup)
 export const isOffScreen = (entity: GameEntity, screenWidth: number, screenHeight: number): boolean => {
-  const { position, size } = entity;
+  const position = entity.components.position;
+  if (!position) return false;
+
+  const width = position.width || 0;
+  const height = position.height || 0;
 
   // Different rules for different entity types
   switch (entity.type) {
     case 'bullet':
-      // Bullets are off-screen if completely outside
       return (
-        position.x < -size.width ||
-        position.x > screenWidth + size.width ||
-        position.y < -size.height ||
-        position.y > screenHeight + size.height
+        position.x < -width ||
+        position.x > screenWidth + width ||
+        position.y < -height ||
+        position.y > screenHeight + height
       );
 
     case 'enemy':
-      // Enemies are off-screen if below bottom (fell off)
-      return position.y > screenHeight + size.height;
+      return position.y > screenHeight + height;
 
     case 'powerUp':
-      // Power-ups are off-screen if below bottom
-      return position.y > screenHeight + size.height;
+      return position.y > screenHeight + height;
 
     default:
       return false;

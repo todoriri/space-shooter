@@ -108,7 +108,7 @@ class AssetManager {
 
     // Enable silent mode on iOS
     if (Platform.OS === 'ios') {
-      Sound.enableSilentMode(true);
+      Sound.setCategory('Playback', true);
     }
   }
 
@@ -143,17 +143,37 @@ class AssetManager {
   }
 
   // Load all essential assets for game startup
-  async loadEssentialAssets(): Promise<void> {
+  async loadEssentialAssets(onProgress?: (progress: number) => void): Promise<void> {
     console.log('Loading essential assets...');
 
-    // Load fonts first (needed for UI)
-    await this.loadCategory(ASSET_CATEGORIES.FONT);
+    // Define categories to load
+    const categoriesToLoad = [
+      ASSET_CATEGORIES.FONT,
+      ASSET_CATEGORIES.UI,
+      ASSET_CATEGORIES.GAME,
+      // ASSET_CATEGORIES.AUDIO - Loaded in background to prevent startup delay
+    ];
 
-    // Load UI assets
-    await this.loadCategory(ASSET_CATEGORIES.UI);
+    // Calculate total items for accurate progress bar
+    const totalItems = categoriesToLoad.reduce((sum, cat) => sum + (this.assetDefinitions[cat]?.length || 0), 0);
+    let loadedItemsSoFar = 0;
 
-    // Load game sprites (can be lazy loaded during gameplay)
-    await this.loadCategory(ASSET_CATEGORIES.GAME);
+    for (const category of categoriesToLoad) {
+      const catSize = this.assetDefinitions[category]?.length || 0;
+      if (catSize === 0) continue;
+
+      await this.loadCategory(category, (categoryProgress) => {
+        if (onProgress) {
+          // Calculate global progress
+          // categoryProgress is 0 to 1
+          const currentCatLoaded = categoryProgress * catSize;
+          const globalProgress = (loadedItemsSoFar + currentCatLoaded) / totalItems;
+          onProgress(globalProgress);
+        }
+      });
+
+      loadedItemsSoFar += catSize;
+    }
 
     console.log('Essential assets loaded');
   }
@@ -224,9 +244,18 @@ class AssetManager {
         case 'sound':
           // Load sound asset with placeholder fallback
           data = await loadAssetWithPlaceholder(key, async () => {
-            return await new Promise<Sound>((resolve, reject) => {
-              const sound = new Sound(uri as number, (error) => {
+            // Resolve asset first to get local file URI
+            // This fixes "filename.startsWith not a function" error when passing require ID directly
+            const asset = Asset.fromModule(uri as number);
+            await asset.downloadAsync();
+            const soundUri = asset.localUri || asset.uri;
+            console.log(`[AssetManager] Loading sound: ${key} from ${soundUri}`);
+
+            // Wrap sound loading in a promise with timeout
+            const soundPromise = new Promise<Sound>((resolve, reject) => {
+              const sound = new Sound(soundUri, '', (error) => {
                 if (error) {
+                  console.warn(`[AssetManager] Failed to load sound ${key}:`, error);
                   reject(error);
                   return;
                 }
@@ -240,7 +269,6 @@ class AssetManager {
                   sound.setNumberOfLoops(-1); // Infinite loop
                 }
 
-                // Log sound loading in development
                 if (isDevelopmentMode) {
                   console.log(`[AssetManager] Loaded sound: ${key}`);
                 }
@@ -248,6 +276,13 @@ class AssetManager {
                 resolve(sound);
               });
             });
+
+            // Add 2-second timeout to prevent global hang (reduced from 10s)
+            const timeoutPromise = new Promise<Sound>((_, reject) => {
+              setTimeout(() => reject(new Error(`Timeout loading sound ${key}`)), 2000);
+            });
+
+            return await Promise.race([soundPromise, timeoutPromise]);
           });
 
           // Estimate size

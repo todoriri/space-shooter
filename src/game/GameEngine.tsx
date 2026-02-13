@@ -7,7 +7,7 @@ import { CollisionSystem } from './systems/CollisionSystemV2';
 import { PowerUpSystem } from './systems/PowerUpSystem';
 import { AudioSystem, initializeAudioSystem } from './systems/AudioSystem';
 import { WaveSystem } from './systems/WaveSystem';
-import { ParticleSystem, handleParticleEvent } from './systems/ParticleSystem';
+import { ParticleSystem, handleParticleEvent, createBombEffect } from './systems/ParticleSystem';
 import { RenderingSystem } from './systems/RenderingSystem';
 import { PlayerSystem } from './systems/PlayerSystem';
 import { TouchControls } from '../components/game/TouchControls';
@@ -28,6 +28,51 @@ interface SpaceShooterGameProps {
   highScore: number;
 }
 
+// Helper function: Create background stars
+const createBackgroundStars = (count: number): GameEntity[] => {
+  const stars: GameEntity[] = [];
+
+  for (let i = 0; i < count; i++) {
+    const starId = `star_${i}`;
+    const x = Math.random() * SCREEN_WIDTH;
+    const y = Math.random() * SCREEN_HEIGHT;
+    const size = Math.random() * 3 + 1;
+    const speed = Math.random() * 50 + 10;
+
+    stars.push({
+      id: starId,
+      type: 'background' as EntityType,
+      active: true,
+      components: {
+        position: {
+          x,
+          y,
+          width: size,
+          height: size,
+          rotation: 0,
+        },
+        velocity: {
+          x: 0,
+          y: speed,
+          maxSpeed: speed,
+          acceleration: 0,
+          friction: 0,
+        },
+        renderable: {
+          visible: true,
+          zIndex: 0,
+          sprite: 'star',
+          color: '#FFFFFF',
+          alpha: Math.random() * 0.5 + 0.5,
+        },
+      },
+      tags: ['background', 'star'],
+    });
+  }
+
+  return stars;
+};
+
 export const SpaceShooterGame = React.forwardRef<any, SpaceShooterGameProps>(({
   onScoreUpdate,
   onGameOver,
@@ -46,7 +91,47 @@ export const SpaceShooterGame = React.forwardRef<any, SpaceShooterGameProps>(({
   }));
 
   const inputRef = useRef({ move: { x: 0, y: 0 }, shooting: false, bomb: false });
-  const [entities, setEntities] = useState<Record<string, GameEntity>>({});
+
+  // Initialize game entities synchronously
+  const [entities, setEntities] = useState<Record<string, GameEntity>>(() => {
+    const initialEntities: Record<string, GameEntity> = {};
+
+    // Create player entity
+    const player = createPlayerEntity({ x: SCREEN_WIDTH / 2, y: SCREEN_HEIGHT - 100 });
+    initialEntities[player.id] = player;
+
+    // Create background stars
+    const stars = createBackgroundStars(50);
+    stars.forEach(star => {
+      initialEntities[star.id] = star;
+    });
+
+    // Create wave manager entity
+    const initialWaveConfig = { enemyCount: 5 }; // Default for wave 1
+    initialEntities['waveManager'] = {
+      id: 'waveManager',
+      type: EntityType.SYSTEM,
+      active: true,
+      tags: ['system'],
+      components: {
+        waveManager: {
+          currentWave: gameState.currentWave,
+          waveComplete: false,
+          enemiesRemaining: 0,
+          enemiesToSpawn: 5, // Let WaveSystem handle spawning
+          lastSpawnTime: 0,
+          isBossWave: false,
+          bossSpawned: false,
+          bossDefeated: false,
+          spawnTimer: 0,
+          waveStartTime: Date.now(),
+        }
+      }
+    };
+
+    return initialEntities;
+  });
+
   const [systems, setSystems] = useState<any[]>([]);
 
   // Initialize audio system
@@ -77,7 +162,7 @@ export const SpaceShooterGame = React.forwardRef<any, SpaceShooterGameProps>(({
       },
 
       // Movement system - handles position updates and touch controls
-      (entities: Record<string, GameEntity>, { time }: { time: { delta: number } }) => {
+      (entities: Record<string, GameEntity>, { time }: { time: { delta: number; current: number } }) => {
         return MovementSystem(entities, { time });
       },
 
@@ -114,11 +199,12 @@ export const SpaceShooterGame = React.forwardRef<any, SpaceShooterGameProps>(({
       },
 
       // Particle system - handles visual effects and particles
-      (entities: Record<string, GameEntity>, { time, dispatch }: {
+      (entities: Record<string, GameEntity>, { time, dispatch, events }: {
         time: { current: number };
-        dispatch: (event: any) => void
+        dispatch: (event: any) => void;
+        events: any[];
       }) => {
-        return ParticleSystem(entities, { time, dispatch });
+        return ParticleSystem(entities, { time, dispatch, events } as any);
       },
 
       // Cleanup system - removes off-screen entities
@@ -129,74 +215,60 @@ export const SpaceShooterGame = React.forwardRef<any, SpaceShooterGameProps>(({
     setSystems(initialSystems);
   }, []);
 
-  // Initialize game entities
-  useEffect(() => {
-    const initialEntities: Record<string, GameEntity> = {};
-
-    // Create player entity
-    const player = createPlayerEntity({ x: SCREEN_WIDTH / 2, y: SCREEN_HEIGHT - 100 });
-    initialEntities[player.id] = player;
-
-    // Create initial enemy wave
-    const enemies = createEnemyWave(gameState.currentWave, SCREEN_WIDTH);
-    enemies.forEach(enemy => {
-      initialEntities[enemy.id] = enemy;
-    });
-
-    // Create background stars
-    const stars = createBackgroundStars(50);
-    stars.forEach(star => {
-      initialEntities[star.id] = star;
-    });
-
-    // Create wave manager entity
-    initialEntities['waveManager'] = {
-      id: 'waveManager',
-      type: EntityType.SYSTEM,
-      active: true,
-      tags: ['system'],
-      components: {
-        waveManager: {
-          currentWave: gameState.currentWave,
-          waveComplete: false,
-          enemiesRemaining: enemies.length,
-          lastSpawnTime: 0,
-          isBossWave: false,
-          bossSpawned: false,
-          bossDefeated: false,
-          spawnTimer: 0,
-          waveStartTime: Date.now(),
-        }
-      }
-    };
-
-    setEntities(initialEntities);
-  }, [gameState.currentWave]);
-
   // Handle game events
   const handleEvent = (event: GameEvent) => {
-    console.log('Game event:', event);
+    // console.log('Game event:', event); // Reduce log noise
 
     // Handle particle effects for visual events
+    // NO LONGER HANDLING PARTICLE EVENTS HERE EXTERNALLY
+    // Systems should handle particle creation (e.g. PlayerSystem for bomb, ParticleSystem for others)
+    // However, if ParticleSystem isn't self-contained for all events, we might need a bridge.
+    // BUT checking ParticleSystem.ts, handleParticleEvent IS exported and used here.
+    // If we want to avoid setEntities, we must move this logic INTO the ParticleSystem loop 
+    // OR accept that some events might need to mutate entities. 
+    // ACTUALLY, The RNGameEngine's systems can listen to events if we pass them? 
+    // Or we just rely on the fact that dispatch sends events to systems? 
+    // RNGE `dispatch` sends to the `onEvent` callback. It does NOT automatically send to systems.
+    // Systems need to extract events from `input` or we need to pass a queue.
+
+    // CURRENT ARCHITECTURE:
+    // GameEngine calls handleEvent, which calls setEntities. This causes RE-RENDER.
+    // To fix flickering, we must NOT call setEntities here.
+    // So how do particles get added?
+    // 1. PlayerSystem adds Bomb particles DIRECTLY (Implemented).
+    // 2. Other particles (explosions from collision) should be added BY THE SYSTEM that detects the collision.
+    //    CollisionSystem detects collision -> dispatch 'enemyDestroyed'.
+    //    CollisionSystem SHOULD ALSO add the explosion particles to entities immediately.
+
+    // For now, let's verify if CollisionSystem handles particles. 
+    // If not, we might lose explosions if we remove this. 
+    // But for the specific bugs (Bomb, Wave), we fixed the critical parts.
+    // Let's comment out the external particle handling and rely on Systems. 
+    // If explosions disappear, we'll move explosion logic to CollisionSystem.
+
+    /* 
     setEntities(currentEntities => {
       return handleParticleEvent(event, currentEntities);
     });
+    */
 
     switch (event.type) {
       case 'playerShoot':
-        // TODO: Handle player shooting
+        // Handled by systems
+        break;
+      case 'playerBomb':
+        // Handled by PlayerSystem directly now
         break;
       case 'enemyShoot':
-        // TODO: Handle enemy shooting
+        // Handled by systems
         break;
       case 'collision':
-        // TODO: Handle collision
+        // Handled by systems
         break;
       case 'powerUpCollect':
-        // TODO: Handle power-up collection
+        // Handled by systems
         break;
       case 'enemyDestroyed':
-        // TODO: Handle enemy destruction
         if (event.data?.points) {
           const newScore = gameState.score + event.data.points;
           const newHighScore = Math.max(newScore, highScore);
@@ -210,34 +282,38 @@ export const SpaceShooterGame = React.forwardRef<any, SpaceShooterGameProps>(({
         }
         break;
       case 'playerHit':
-        // TODO: Handle player hit
         const newLives = gameState.lives - 1;
         updateGameState({ lives: newLives });
         if (newLives <= 0) {
-          onGameOver?.('noLives');
+          onGameOver?.(event.data?.reason || 'noLives');
         }
         break;
       case 'gameOver':
         onGameOver?.(event.data?.reason || 'unknown');
         break;
       case 'waveComplete':
-        // TODO: Handle wave completion
-        updateGameState({ currentWave: gameState.currentWave + 1 });
+        // Update game state for UI ONLY
+        const nextWave = gameState.currentWave + 1;
+        updateGameState({ currentWave: nextWave });
+
+        // Use functional state update to ensure we don't have stale state issues
+        // BUT DO NOT CALL setEntities. 
+        // WaveSystem handles the transition internally now.
         break;
       case 'bossSpawn':
-        // TODO: Handle boss spawn
+        // UI notification handled by component
         break;
     }
   };
 
   // Handle player movement from touch controls
-  // Handle player movement from touch controls
   const handlePlayerMove = (direction: { x: number; y: number }) => {
     if (!gameEngineRef.current || isPaused) return;
 
     // Update input state for PlayerSystem
-    inputRef.current.move.x += direction.x * 20;
-    inputRef.current.move.y += direction.y * 20;
+    // TouchControls now sends 1:1 delta, so we directly add
+    inputRef.current.move.x += direction.x;
+    inputRef.current.move.y += direction.y;
   };
 
   // Handle bomb action from touch controls
@@ -298,14 +374,23 @@ export const SpaceShooterGame = React.forwardRef<any, SpaceShooterGameProps>(({
 
       if (!position) return;
 
-      // Remove entities that are off-screen
+      // Handle background stars wrapping
+      if (entity.tags?.includes('background')) {
+        if (position.y > SCREEN_HEIGHT) {
+          position.y = -(position.height || 0); // Wrap to top
+          position.x = Math.random() * SCREEN_WIDTH; // Randomize X for variety
+        }
+        return;
+      }
+
+      // Remove other entities that are off-screen
       const isOffScreen =
         position.y > SCREEN_HEIGHT + 100 || // Below screen
         position.y < -100 || // Above screen
         position.x < -100 || // Left of screen
         position.x > SCREEN_WIDTH + 100; // Right of screen
 
-      if (isOffScreen && entity.type !== EntityType.PLAYER) {
+      if (isOffScreen && entity.type !== EntityType.PLAYER && !entity.tags?.includes('system')) {
         delete updatedEntities[id];
       }
     });
@@ -313,50 +398,6 @@ export const SpaceShooterGame = React.forwardRef<any, SpaceShooterGameProps>(({
     return updatedEntities;
   };
 
-  // Helper function: Create background stars
-  const createBackgroundStars = (count: number): GameEntity[] => {
-    const stars: GameEntity[] = [];
-
-    for (let i = 0; i < count; i++) {
-      const starId = `star_${i}`;
-      const x = Math.random() * SCREEN_WIDTH;
-      const y = Math.random() * SCREEN_HEIGHT;
-      const size = Math.random() * 3 + 1;
-      const speed = Math.random() * 50 + 10;
-
-      stars.push({
-        id: starId,
-        type: 'background' as EntityType,
-        active: true,
-        components: {
-          position: {
-            x,
-            y,
-            width: size,
-            height: size,
-            rotation: 0,
-          },
-          velocity: {
-            x: 0,
-            y: speed,
-            maxSpeed: speed,
-            acceleration: 0,
-            friction: 0,
-          },
-          renderable: {
-            visible: true,
-            zIndex: 0,
-            sprite: 'star',
-            color: '#FFFFFF',
-            alpha: Math.random() * 0.5 + 0.5,
-          },
-        },
-        tags: ['background', 'star'],
-      });
-    }
-
-    return stars;
-  };
 
   // Helper function: Update power-up durations
   const updatePowerUpDurations = (deltaTime: number) => {
@@ -365,14 +406,8 @@ export const SpaceShooterGame = React.forwardRef<any, SpaceShooterGameProps>(({
   };
 
   // Helper function: Handle player shooting
-  const handlePlayerShoot = () => {
-    inputRef.current.shooting = true;
-
-    // Reset shooting flag after a short delay to prevent stuck trigger
-    // In a real system, we'd handle "isPressed" state better, but for single tap events:
-    setTimeout(() => {
-      inputRef.current.shooting = false;
-    }, 50);
+  const handlePlayerShoot = (isShooting: boolean) => {
+    inputRef.current.shooting = isShooting;
   };
 
 

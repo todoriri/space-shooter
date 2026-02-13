@@ -1,7 +1,8 @@
 // Mobile Lifecycle Manager for handling mobile-specific events
 // Manages app state, interruptions, battery, and orientation
 
-import { AppState, AppStateStatus, Dimensions, Platform } from 'react-native';
+import React from 'react';
+import { AppState, AppStateStatus, Dimensions, Platform, NativeEventSubscription, EmitterSubscription } from 'react-native';
 import { performanceMonitor } from './PerformanceMonitor';
 
 export type AppStateEvent = 'active' | 'background' | 'inactive' | 'unknown';
@@ -56,6 +57,9 @@ class MobileLifecycleManager {
   private autoSaveInterval = 5 * 60 * 1000;
   private autoSaveTimer: NodeJS.Timeout | null = null;
 
+  private appStateSubscription: NativeEventSubscription | null = null;
+  private dimensionsSubscription: EmitterSubscription | null = null;
+
   private constructor() {
     // Private constructor for singleton
   }
@@ -74,10 +78,10 @@ class MobileLifecycleManager {
     console.log('Initializing Mobile Lifecycle Manager...');
 
     // Set up app state listener
-    AppState.addEventListener('change', this.handleAppStateChange);
+    this.appStateSubscription = AppState.addEventListener('change', this.handleAppStateChange);
 
     // Set up orientation listener
-    Dimensions.addEventListener('change', this.handleOrientationChange);
+    this.dimensionsSubscription = Dimensions.addEventListener('change', this.handleOrientationChange);
 
     // Set up auto-save timer
     this.startAutoSave();
@@ -97,8 +101,15 @@ class MobileLifecycleManager {
   cleanup(): void {
     if (!this.isInitialized) return;
 
-    AppState.removeEventListener('change', this.handleAppStateChange);
-    Dimensions.removeEventListener('change', this.handleOrientationChange);
+    if (this.appStateSubscription) {
+      this.appStateSubscription.remove();
+      this.appStateSubscription = null;
+    }
+
+    if (this.dimensionsSubscription) {
+      this.dimensionsSubscription.remove();
+      this.dimensionsSubscription = null;
+    }
 
     if (this.autoSaveTimer) {
       clearInterval(this.autoSaveTimer);

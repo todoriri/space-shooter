@@ -138,7 +138,7 @@ const handleCollision = (
       break;
 
     case 'bullet-enemy':
-      handleBulletEnemyCollision(entity1Obj, entity2Obj, position, dispatch);
+      handleBulletEnemyCollision(entity1Obj, entity2Obj, position, entities, dispatch);
       break;
 
     case 'bullet-player':
@@ -168,7 +168,7 @@ const handlePlayerEnemyCollision = (
   if (!playerHealth || !playerComp) return;
 
   // Check if player is invulnerable
-  if (playerHealth.invulnerable && playerHealth.invulnerableTimer > currentTime) {
+  if (playerHealth.invulnerable && (playerHealth.invulnerableTimer || 0) > currentTime) {
     return;
   }
 
@@ -178,7 +178,7 @@ const handlePlayerEnemyCollision = (
 
   // Make player invulnerable briefly
   playerHealth.invulnerable = true;
-  playerHealth.invulnerableTimer = currentTime + 1000; // 1 second invulnerability
+  playerHealth.invulnerableTimer = currentTime + 1000; // 1 second invulnerability in ms
 
   // Enemy takes damage (if it can be damaged by collision)
   if (enemyHealth) {
@@ -266,6 +266,7 @@ const handleBulletEnemyCollision = (
   bulletEntity: GameEntity,
   enemyEntity: GameEntity,
   position: { x: number; y: number },
+  entities: Record<string, GameEntity>,
   dispatch: (event: any) => void
 ) => {
   const bulletComp = bulletEntity.components.bullet;
@@ -283,8 +284,16 @@ const handleBulletEnemyCollision = (
     enemyHealth.current = Math.max(0, enemyHealth.current - damage);
   }
 
-  // Deactivate bullet
-  bulletEntity.active = false;
+  // Handle pierce logic
+  if (bulletComp.pierce > 1) {
+    bulletComp.currentPierce = (bulletComp.currentPierce || bulletComp.pierce) - 1;
+    if (bulletComp.currentPierce <= 0) {
+      bulletEntity.active = false;
+    }
+  } else {
+    // Default behavior for non-piercing bullets
+    bulletEntity.active = false;
+  }
 
   // Dispatch hit event
   dispatch({
@@ -332,7 +341,7 @@ const handleBulletPlayerCollision = (
   if (!bulletComp || !playerHealth || !playerComp) return;
 
   // Skip if player is invulnerable
-  if (playerHealth.invulnerable && playerHealth.invulnerableTimer > currentTime) return;
+  if (playerHealth.invulnerable && (playerHealth.invulnerableTimer || 0) > currentTime) return;
 
   // Apply damage
   const damage = bulletComp.damage || 20;

@@ -445,6 +445,75 @@ export const isEnemyOffScreen = (enemy: GameEntity, screenHeight: number): boole
 };
 
 /**
+ * Creates a single enemy for a wave
+ * @param waveNumber - Current wave number
+ * @param screenWidth - Width of the game screen
+ * @param difficultyMultiplier - Difficulty multiplier
+ * @returns An enemy entity
+ */
+export const createSingleEnemyForWave = (
+  waveNumber: number,
+  screenWidth: number,
+  difficultyMultiplier: number = 1.0
+): GameEntity => {
+  let enemyType: EnemyType = EnemyType.BASIC;
+
+  if (waveNumber === 1) {
+    // First wave: only basic enemies
+    enemyType = EnemyType.BASIC;
+  } else if (waveNumber <= 3) {
+    // Early waves: mix of basic and diving enemies
+    enemyType = Math.random() > 0.7 ? EnemyType.DIVING : EnemyType.BASIC;
+  } else if (waveNumber <= 6) {
+    // Mid waves: add shooting enemies
+    const rand = Math.random();
+    if (rand > 0.8) {
+      enemyType = EnemyType.SHOOTING;
+    } else if (rand > 0.5) {
+      enemyType = EnemyType.DIVING;
+    } else {
+      enemyType = EnemyType.BASIC;
+    }
+  } else if (waveNumber % 5 === 0) {
+    // Boss wave handling should be separate, but if called here, return boss
+    return createEnemyEntity(
+      { x: screenWidth / 2, y: -100 },
+      EnemyType.BOSS
+    );
+  } else {
+    // Late waves: more variety
+    const rand = Math.random();
+    if (rand > 0.9) {
+      enemyType = EnemyType.SHOOTING;
+    } else if (rand > 0.7) {
+      enemyType = EnemyType.DIVING;
+    } else if (rand > 0.4) {
+      enemyType = EnemyType.BASIC;
+    } else {
+      enemyType = EnemyType.SHOOTING;
+    }
+  }
+
+  // Randomize X position
+  const margin = 30;
+  const x = margin + Math.random() * (screenWidth - margin * 2);
+  const y = -50; // Start above screen
+
+  const enemy = createEnemyEntity({ x, y }, enemyType);
+
+  // Apply difficulty multiplier
+  if (enemy.components.health) {
+    enemy.components.health.current *= difficultyMultiplier;
+    enemy.components.health.max *= difficultyMultiplier;
+  }
+  if (enemy.components.enemy) {
+    enemy.components.enemy.scoreValue = Math.floor(enemy.components.enemy.scoreValue * difficultyMultiplier);
+  }
+
+  return enemy;
+};
+
+/**
  * Creates a wave of enemies
  * @param waveNumber - Current wave number
  * @param screenWidth - Width of the game screen
