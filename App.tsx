@@ -1,3 +1,4 @@
+import 'react-native-gesture-handler';
 import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -11,7 +12,7 @@ import { assetManager } from './src/utils/AssetManager';
 import { performanceMonitor } from './src/utils/PerformanceMonitor';
 
 import { mobileLifecycleManager } from './src/utils/MobileLifecycleManager';
-import { loadHighScore, saveHighScore, loadGameSettings } from './src/utils/storage';
+import { loadHighScore, saveHighScore, loadGameSettings, GameSettings } from './src/utils/storage';
 import { GameAudio } from './src/utils/AudioManager';
 
 // Import screens (to be created)
@@ -28,7 +29,7 @@ const Stack = createStackNavigator();
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadProgress, setLoadProgress] = useState(0);
-  const { gameState, resetGameState } = useGameState();
+  const { gameState, updateGameState, resetGameState, togglePause } = useGameState();
 
   // Initialize game systems on mount
   useEffect(() => {
@@ -61,7 +62,7 @@ export default function App() {
       setupLifecycleCallbacks();
 
       // 6. Load settings and apply audio config
-      const settings = await loadGameSettings();
+      const settings: GameSettings = await loadGameSettings();
       GameAudio.setGameVolumes(
         settings.musicEnabled ? 1.0 : 0.0,
         settings.soundEnabled ? 1.0 : 0.0,
@@ -70,15 +71,7 @@ export default function App() {
 
       // 7. Load high score
       const loadedHighScore = await loadHighScore();
-      resetGameState(); // Reset to initial state but keep high score
-      gameState.highScore = loadedHighScore; // Update directly or via a setter if available, but for now we'll rely on the resetGameState preserving it if we modify it effectively. 
-      // Actually, better to use the hook's update function if we can, but we are outside the component context for the hook's returned functions in this scope? 
-      // Wait, `initializeGame` is inside `App` component, so we have access to `resetGameState` and `gameState`.
-      // The `useGameState` hook initializes with 0. We need to update it.
-      // Let's rely on `useEffect` to load it or just do it here.
-      // The `useGameState` hook doesn't expose a simple "setHighScore" but `resetGameState` preserves it. 
-      // We need a way to set it initially. `useGameState` likely needs a `setState` or similar. 
-      // Looking at `GameState.ts`, `updateGameState` is available.
+      updateGameState({ highScore: loadedHighScore });
 
       console.log('Game initialization complete');
       setIsLoading(false);
@@ -168,6 +161,8 @@ export default function App() {
                 <GameScreen
                   {...props}
                   gameState={gameState}
+                  updateGameState={updateGameState}
+                  togglePause={togglePause}
                   onGameOver={(score, reason) => {
                     handleGameOver(score, reason);
                     props.navigation.navigate('GameOver', { score, reason });
@@ -187,19 +182,22 @@ export default function App() {
             </Stack.Screen>
 
             <Stack.Screen name="GameOver">
-              {(props) => (
-                <GameOverScreen
-                  {...props}
-                  score={props.route.params?.score || 0}
-                  highScore={gameState.highScore}
-                  reason={props.route.params?.reason}
-                  onRestart={() => {
-                    resetGameState();
-                    props.navigation.replace('Game');
-                  }}
-                  onMenu={() => props.navigation.navigate('Menu')}
-                />
-              )}
+              {(props) => {
+                const params = props.route.params as any;
+                return (
+                  <GameOverScreen
+                    {...props}
+                    score={params?.score || 0}
+                    highScore={gameState.highScore}
+                    reason={params?.reason}
+                    onRestart={() => {
+                      resetGameState();
+                      props.navigation.replace('Game');
+                    }}
+                    onMenu={() => props.navigation.navigate('Menu')}
+                  />
+                );
+              }}
             </Stack.Screen>
           </Stack.Navigator>
         </View>

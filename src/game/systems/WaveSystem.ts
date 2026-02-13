@@ -90,7 +90,7 @@ export const WaveSystem = (
 
   // Check if wave is complete
   if (waveState.enemiesRemaining <= 0 && !waveState.waveComplete) {
-    completeWave(waveState, dispatch);
+    completeWave(waveState, entities, dispatch);
     return entities;
   }
 
@@ -110,33 +110,72 @@ export const WaveSystem = (
 
 // Get current wave state
 const getWaveState = (entities: Record<string, GameEntity>): WaveState => {
-  // Count active enemies
-  let enemiesRemaining = 0;
-  let bossSpawned = false;
-  let bossDefeated = false;
+  const waveManager = entities['waveManager']?.components?.waveManager;
 
-  Object.values(entities).forEach(entity => {
-    if (entity.type === EntityType.ENEMY && entity.active) {
-      enemiesRemaining++;
-      if (entity.components.enemy?.type === EnemyType.BOSS) {
-        bossSpawned = true;
+  // Use state from entity if available
+  if (waveManager) {
+    // Count active enemies to ensure accuracy
+    let enemiesRemaining = 0;
+    let bossSpawned = false;
+    let bossDefeated = false;
+
+    Object.values(entities).forEach(entity => {
+      if (entity.type === EntityType.ENEMY && entity.active) {
+        enemiesRemaining++;
+        if (entity.components.enemy?.type === EnemyType.BOSS) {
+          bossSpawned = true;
+        }
+      } else if (entity.type === EntityType.ENEMY && !entity.active && entity.components.enemy?.type === EnemyType.BOSS) {
+        bossDefeated = true;
       }
-    } else if (entity.type === EntityType.ENEMY && !entity.active && entity.components.enemy?.type === EnemyType.BOSS) {
-      bossDefeated = true;
-    }
-  });
+    });
 
-  // This would normally come from game state
-  // For now, we'll use a default
+    return {
+      currentWave: waveManager.currentWave,
+      enemiesRemaining,
+      isBossWave: waveManager.isBossWave,
+      bossSpawned: waveManager.bossSpawned || bossSpawned,
+      bossDefeated: waveManager.bossDefeated || bossDefeated,
+      lastSpawnTime: waveManager.lastSpawnTime,
+      spawnTimer: waveManager.spawnTimer,
+      waveStartTime: waveManager.waveStartTime,
+      waveComplete: waveManager.waveComplete,
+    };
+  }
+
+  // If waveManager is missing, create it (Self-healing)
+  console.warn('WaveManager entity missing, recreating...');
+
   const currentWave = 1;
-  const isBossWave = currentWave % 5 === 0; // Boss every 5 waves
+  const isBossWave = false;
+
+  // Create the entity
+  entities['waveManager'] = {
+    id: 'waveManager',
+    type: EntityType.SYSTEM,
+    active: true,
+    tags: ['system'],
+    components: {
+      waveManager: {
+        currentWave,
+        waveComplete: false,
+        enemiesRemaining: 0,
+        lastSpawnTime: 0,
+        isBossWave,
+        bossSpawned: false,
+        bossDefeated: false,
+        spawnTimer: 0,
+        waveStartTime: Date.now(),
+      }
+    }
+  };
 
   return {
     currentWave,
-    enemiesRemaining,
+    enemiesRemaining: 0,
     isBossWave,
-    bossSpawned,
-    bossDefeated,
+    bossSpawned: false,
+    bossDefeated: false,
     lastSpawnTime: 0,
     spawnTimer: 0,
     waveStartTime: Date.now(),
@@ -260,12 +299,27 @@ const spawnBossWave = (
         bossType: waveConfig.bossType,
       },
     });
+
+    // Update wave manager state
+    const waveManager = entities['waveManager']?.components?.waveManager;
+    if (waveManager) {
+      waveManager.bossSpawned = true;
+      waveManager.enemiesRemaining = 1;
+    }
   }
 };
 
 // Complete current wave
-const completeWave = (waveState: WaveState, dispatch: (event: any) => void) => {
-  waveState.waveComplete = true;
+const completeWave = (waveState: WaveState, entities: Record<string, GameEntity>, dispatch: (event: any) => void) => {
+  // Update wave manager entity
+  const waveManager = entities['waveManager']?.components?.waveManager;
+  if (waveManager) {
+    waveManager.waveComplete = true;
+    console.log(`Wave ${waveState.currentWave} marked as complete`);
+  } else {
+    console.error('WaveManager missing during completeWave');
+  }
+
 
   // Dispatch wave complete event
   dispatch({

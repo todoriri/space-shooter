@@ -18,17 +18,21 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface GameScreenProps {
   gameState: GameStateType;
+  updateGameState: (updates: Partial<GameStateType>) => void;
+  togglePause: () => void;
   onGameOver: (score: number, reason?: string) => void;
   onBackToMenu: () => void;
 }
 
 export const GameScreen: React.FC<GameScreenProps> = ({
   gameState,
+  updateGameState,
+  togglePause,
   onGameOver,
   onBackToMenu,
 }) => {
-  const { updateGameState, togglePause } = useGameState();
   const [isPaused, setIsPaused] = useState(false);
+
   const [showPauseMenu, setShowPauseMenu] = useState(false);
   const gameEngineRef = useRef<any>(null);
 

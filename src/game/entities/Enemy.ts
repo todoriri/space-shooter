@@ -54,7 +54,7 @@ export const createEnemyEntity = (
           diveChance: 0.1,
         },
         collider: {
-          type: 'circle',
+          type: 'circle' as const,
           radius: 15,
           isTrigger: false,
           layer: 'enemy',
@@ -102,7 +102,7 @@ export const createEnemyEntity = (
           diveDirection: Math.random() > 0.5 ? 1 : -1,
         },
         collider: {
-          type: 'circle',
+          type: 'circle' as const,
           radius: 17,
           isTrigger: false,
           layer: 'enemy',
@@ -151,7 +151,7 @@ export const createEnemyEntity = (
           zigzagFrequency: 2,
         },
         collider: {
-          type: 'circle',
+          type: 'circle' as const,
           radius: 16,
           isTrigger: false,
           layer: 'enemy',
@@ -201,7 +201,7 @@ export const createEnemyEntity = (
           patternCooldown: 3,
         },
         collider: {
-          type: 'circle',
+          type: 'circle' as const,
           radius: 40,
           isTrigger: false,
           layer: 'enemy',
@@ -316,7 +316,7 @@ export const updateEnemyMovement = (
   }
 
   // Check for random dive chance (for basic enemies)
-  if (enemyComp.type === EnemyType.BASIC && Math.random() < enemyComp.diveChance) {
+  if (enemyComp.type === EnemyType.BASIC && Math.random() < (enemyComp.diveChance || 0)) {
     enemyComp.movePattern = 'dive';
     enemyComp.diveDirection = Math.random() > 0.5 ? 1 : -1;
     enemyComp.patternTimer = 0;
@@ -450,7 +450,11 @@ export const isEnemyOffScreen = (enemy: GameEntity, screenHeight: number): boole
  * @param screenWidth - Width of the game screen
  * @returns Array of enemy entities for the wave
  */
-export const createEnemyWave = (waveNumber: number, screenWidth: number): GameEntity[] => {
+export const createEnemyWave = (
+  waveNumber: number,
+  screenWidth: number,
+  difficultyMultiplier: number = 1.0
+): GameEntity[] => {
   const enemies: GameEntity[] = [];
   const enemyCount = 5 + Math.floor(waveNumber * 1.5);
   const spacing = screenWidth / (enemyCount + 1);
@@ -484,6 +488,16 @@ export const createEnemyWave = (waveNumber: number, screenWidth: number): GameEn
       { x: screenWidth / 2, y: -100 },
       EnemyType.BOSS
     );
+
+    // Apply difficulty multiplier to boss
+    if (boss.components.health) {
+      boss.components.health.current *= difficultyMultiplier;
+      boss.components.health.max *= difficultyMultiplier;
+    }
+    if (boss.components.enemy) {
+      boss.components.enemy.scoreValue = Math.floor(boss.components.enemy.scoreValue * difficultyMultiplier);
+    }
+
     return [boss];
   } else {
     // Late waves: more variety
@@ -507,6 +521,16 @@ export const createEnemyWave = (waveNumber: number, screenWidth: number): GameEn
     const y = -50 - (i % 3) * 40; // Staggered starting positions
 
     const enemy = createEnemyEntity({ x, y }, enemyTypes[i]);
+
+    // Apply difficulty multiplier
+    if (enemy.components.health) {
+      enemy.components.health.current *= difficultyMultiplier;
+      enemy.components.health.max *= difficultyMultiplier;
+    }
+    if (enemy.components.enemy) {
+      enemy.components.enemy.scoreValue = Math.floor(enemy.components.enemy.scoreValue * difficultyMultiplier);
+    }
+
     enemies.push(enemy);
   }
 

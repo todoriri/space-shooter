@@ -82,6 +82,18 @@ export interface PowerUpComponent {
   floatTimer: number;
 }
 
+export interface WaveManagerComponent {
+  currentWave: number;
+  waveComplete: boolean;
+  enemiesRemaining: number;
+  lastSpawnTime: number;
+  isBossWave: boolean;
+  bossSpawned: boolean;
+  bossDefeated: boolean;
+  spawnTimer: number;
+  waveStartTime: number;
+}
+
 export interface Collider {
   type: 'circle' | 'rectangle';
   radius?: number;
@@ -98,6 +110,8 @@ export interface Renderable {
   sprite?: string;
   color: string;
   alpha: number;
+  scale?: number;
+  rotation?: number;
   glowEffect?: boolean;
   pulseEffect?: boolean;
   pulseSpeed?: number;
@@ -120,6 +134,7 @@ export enum EntityType {
   POWER_UP = 'powerUp',
   BACKGROUND = 'background',
   PARTICLE = 'particle',
+  SYSTEM = 'system',
 }
 
 // Enemy Types
@@ -164,6 +179,7 @@ export interface GameEntity {
     powerUp?: PowerUpComponent;
     collider?: Collider;
     renderable?: Renderable;
+    waveManager?: WaveManagerComponent;
   };
 }
 

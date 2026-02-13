@@ -2,7 +2,7 @@
 // Provides virtual joystick and button controls for player movement and actions
 
 import React, { useState, useRef } from 'react';
-import { View, StyleSheet, PanResponder, Dimensions, Animated } from 'react-native';
+import { View, StyleSheet, PanResponder, Dimensions, Animated, Text } from 'react-native';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -305,7 +305,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
       {__DEV__ && (
         <View style={styles.movementHint}>
           <View style={styles.hintTextContainer}>
-            <View style={styles.hintText}>Move</View>
+            <Text style={styles.hintText}>Move</Text>
           </View>
         </View>
       )}
@@ -314,7 +314,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
       {__DEV__ && (
         <View style={styles.shootHint}>
           <View style={styles.hintTextContainer}>
-            <View style={styles.hintText}>Shoot</View>
+            <Text style={styles.hintText}>Shoot</Text>
           </View>
         </View>
       )}
