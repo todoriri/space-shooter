@@ -1,7 +1,7 @@
 // Wave System for Entity-Component-System architecture
 // Handles enemy wave progression, difficulty scaling, and boss encounters
 
-import { GameEntity, EntityType, EnemyType } from '../types';
+import { GameEntity, EntityType, EnemyType } from '../../types';
 import { createEnemyWave } from '../entities/Enemy';
 import { createRandomPowerUpDrop } from '../entities/PowerUp';
 

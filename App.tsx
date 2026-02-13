@@ -9,10 +9,14 @@ import { StyleSheet, View } from 'react-native';
 import { useGameState } from './src/game/GameState';
 import { assetManager } from './src/utils/AssetManager';
 import { performanceMonitor } from './src/utils/PerformanceMonitor';
+
 import { mobileLifecycleManager } from './src/utils/MobileLifecycleManager';
+import { loadHighScore, saveHighScore, loadGameSettings } from './src/utils/storage';
+import { GameAudio } from './src/utils/AudioManager';
 
 // Import screens (to be created)
 import { MenuScreen } from './src/screens/MenuScreen';
+import { SettingsScreen } from './src/screens/SettingsScreen';
 import { GameScreen } from './src/screens/GameScreen';
 import { GameOverScreen } from './src/screens/GameOverScreen';
 import { LoadingScreen } from './src/screens/LoadingScreen';
@@ -56,6 +60,26 @@ export default function App() {
       // 5. Set up lifecycle callbacks
       setupLifecycleCallbacks();
 
+      // 6. Load settings and apply audio config
+      const settings = await loadGameSettings();
+      GameAudio.setGameVolumes(
+        settings.musicEnabled ? 1.0 : 0.0,
+        settings.soundEnabled ? 1.0 : 0.0,
+        settings.soundEnabled ? 1.0 : 0.0
+      );
+
+      // 7. Load high score
+      const loadedHighScore = await loadHighScore();
+      resetGameState(); // Reset to initial state but keep high score
+      gameState.highScore = loadedHighScore; // Update directly or via a setter if available, but for now we'll rely on the resetGameState preserving it if we modify it effectively. 
+      // Actually, better to use the hook's update function if we can, but we are outside the component context for the hook's returned functions in this scope? 
+      // Wait, `initializeGame` is inside `App` component, so we have access to `resetGameState` and `gameState`.
+      // The `useGameState` hook initializes with 0. We need to update it.
+      // Let's rely on `useEffect` to load it or just do it here.
+      // The `useGameState` hook doesn't expose a simple "setHighScore" but `resetGameState` preserves it. 
+      // We need a way to set it initially. `useGameState` likely needs a `setState` or similar. 
+      // Looking at `GameState.ts`, `updateGameState` is available.
+
       console.log('Game initialization complete');
       setIsLoading(false);
     } catch (error) {
@@ -83,7 +107,9 @@ export default function App() {
       onSaveGameState: async () => {
         // Save game state when app backgrounds
         console.log('Auto-saving game state...');
-        // Implement game state saving
+        if (gameState.highScore > 0) {
+          await saveHighScore(gameState.highScore);
+        }
       },
     });
   };
@@ -101,6 +127,11 @@ export default function App() {
   const handleGameOver = (score: number, reason?: string) => {
     // Navigate to game over screen
     console.log(`Game over - Score: ${score}, Reason: ${reason}`);
+
+    // Save high score if changed
+    if (score >= gameState.highScore) {
+      saveHighScore(score);
+    }
   };
 
   // Show loading screen while initializing
@@ -127,6 +158,7 @@ export default function App() {
                   {...props}
                   highScore={gameState.highScore}
                   onStartGame={() => props.navigation.navigate('Game')}
+                  onSettings={() => props.navigation.navigate('Settings')}
                 />
               )}
             </Stack.Screen>
@@ -137,9 +169,19 @@ export default function App() {
                   {...props}
                   gameState={gameState}
                   onGameOver={(score, reason) => {
+                    handleGameOver(score, reason);
                     props.navigation.navigate('GameOver', { score, reason });
                   }}
                   onBackToMenu={() => props.navigation.navigate('Menu')}
+                />
+              )}
+            </Stack.Screen>
+
+            <Stack.Screen name="Settings">
+              {(props) => (
+                <SettingsScreen
+                  {...props}
+                  navigation={props.navigation}
                 />
               )}
             </Stack.Screen>

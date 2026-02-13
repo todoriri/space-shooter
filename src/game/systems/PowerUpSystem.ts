@@ -1,14 +1,7 @@
 // Power-up System for Entity-Component-System architecture
 // Handles power-up effects, duration tracking, and expiration
 
-import { GameEntity, EntityType, PowerUpType } from '../types';
-
-// Interface for active power-up
-export interface ActivePowerUp {
-  type: PowerUpType;
-  endTime: number;
-  effectApplied: boolean;
-}
+import { GameEntity, EntityType, PowerUpType, ActivePowerUp } from '../../types';
 
 // System function that processes power-up effects and durations
 export const PowerUpSystem = (

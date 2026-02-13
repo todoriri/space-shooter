@@ -102,6 +102,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
         isPaused={isPaused}
         gameState={gameState}
         updateGameState={updateGameState}
+        highScore={gameState.highScore}
       />
 
       {/* Game HUD Overlay */}

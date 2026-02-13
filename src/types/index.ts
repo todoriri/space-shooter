@@ -24,11 +24,18 @@ export interface Health {
   invulnerableTimer?: number;
 }
 
+export interface ActivePowerUp {
+  type: PowerUpType;
+  endTime: number;
+  effectApplied: boolean;
+}
+
 export interface PlayerComponent {
   canShoot: boolean;
   shootCooldown: number;
   lastShotTime: number;
   powerUps: string[];
+  activePowerUps?: ActivePowerUp[];
   score: number;
   lives: number;
   touchPosition?: Position;
@@ -112,6 +119,7 @@ export enum EntityType {
   BULLET = 'bullet',
   POWER_UP = 'powerUp',
   BACKGROUND = 'background',
+  PARTICLE = 'particle',
 }
 
 // Enemy Types
@@ -148,6 +156,7 @@ export interface GameEntity {
   components: {
     position?: Position;
     velocity?: Velocity;
+    acceleration?: { x: number; y: number };
     health?: Health;
     player?: PlayerComponent;
     enemy?: EnemyComponent;

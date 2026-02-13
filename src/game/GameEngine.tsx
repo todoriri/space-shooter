@@ -24,6 +24,7 @@ interface SpaceShooterGameProps {
   isPaused?: boolean;
   gameState: GameState;
   updateGameState: (updates: Partial<GameState>) => void;
+  highScore: number;
 }
 
 export const SpaceShooterGame: React.FC<SpaceShooterGameProps> = ({
@@ -33,6 +34,7 @@ export const SpaceShooterGame: React.FC<SpaceShooterGameProps> = ({
   isPaused = false,
   gameState,
   updateGameState,
+  highScore,
 }) => {
   const gameEngineRef = useRef<RNGameEngine>(null);
   const [entities, setEntities] = useState<Record<string, GameEntity>>({});
@@ -162,7 +164,13 @@ export const SpaceShooterGame: React.FC<SpaceShooterGameProps> = ({
         // TODO: Handle enemy destruction
         if (event.data?.points) {
           const newScore = gameState.score + event.data.points;
-          updateGameState({ score: newScore });
+          const newHighScore = Math.max(newScore, highScore);
+          
+          updateGameState({ 
+            score: newScore,
+            highScore: newHighScore
+          });
+          
           onScoreUpdate?.(newScore);
         }
         break;
