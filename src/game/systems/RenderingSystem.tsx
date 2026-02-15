@@ -57,6 +57,16 @@ export const RenderingSystem = (entities: Record<string, GameEntity>) => {
 
   if (!entities) return renderables;
 
+  // 1. Calculate Global Shake Offset
+  // Find the system entity (optimized: simpler loop, or we assume it's there)
+  // Since this runs every frame, we want to be fast. 
+  // Maybe checking for 'system_shake' id directly is better if we enforce that ID?
+  // Let's iterate once or check specific key if we know it.
+  // We'll stick to a quick find for now or check entities['system_shake'] based on ShakeSystem.ts.
+  const shakeComp = entities['system_shake']?.components?.screenShake;
+  const shakeX = shakeComp ? shakeComp.currentOffset.x : 0;
+  const shakeY = shakeComp ? shakeComp.currentOffset.y : 0;
+
   Object.keys(entities).forEach(id => {
     const entity = entities[id];
 
@@ -71,8 +81,15 @@ export const RenderingSystem = (entities: Record<string, GameEntity>) => {
     if (!position) return;
 
     // Calculate screen position (center of entity)
-    const screenX = position.x - (position.width || 0) / 2;
-    const screenY = position.y - (position.height || 0) / 2;
+    // APPLY SHAKE HERE
+    let screenX = position.x - (position.width || 0) / 2;
+    let screenY = position.y - (position.height || 0) / 2;
+
+    // Don't shake UI/HUD if we had checking. 
+    // Entities here are game world objects. UI is separate in GameEngine potentially,
+    // OR entities usually include floating text which we DO want to shake? usually yes.
+    screenX += shakeX;
+    screenY += shakeY;
 
     // Create style for the entity
     const entityStyle = {
@@ -126,6 +143,9 @@ export const RenderingSystem = (entities: Record<string, GameEntity>) => {
         break;
       case EntityType.FLOATING_TEXT:
         renderComponent = renderFloatingText(entity, entityStyle);
+        break;
+      case 'particle': // Explicit check for particle string type if EntityType enum isn't updated yet
+        renderComponent = renderParticle(entity, entityStyle);
         break;
       default:
         // Use container style for generic
@@ -193,6 +213,18 @@ const renderEnemy = (entity: GameEntity, style: any): JSX.Element => {
 
   // Actually style contains position and rotation, so we keep it but override bg color
   const containerStyle = { ...style, backgroundColor: 'transparent' };
+
+  // Hit Flash Logic
+  if (enemyComp?.hitFlashTimer && enemyComp.hitFlashTimer > 0) {
+    // Decrease timer (hacky: modifying state in render is bad practice but common for simple visual-only effects in RNGE)
+    // Ideally this should be in a system, but doing it here ensures it's tied to frames.
+    // Better: The ShakeSystem or MovementSystem should decrement this.
+    // For now, let's just use it to determine color.
+    // FLASH WHITE
+    enemyComp.hitFlashTimer -= 1; // Decrement for next frame
+    // We will override the color prop passed to EntitySprite
+    if (renderable) renderable.color = '#FFFFFF'; // Force white
+  }
 
   const { width, height } = style;
 
@@ -320,6 +352,29 @@ const renderFloatingText = (entity: GameEntity, style: any): JSX.Element => {
         {ft.text}
       </Text>
     </View>
+  );
+};
+
+// Render particle (simple shape/sprite)
+const renderParticle = (entity: GameEntity, style: any): JSX.Element => {
+  const renderable = entity.components.renderable;
+
+  // Particles are typically just shapes/colors, so we ensure no background on container
+  // and let the style (which has bg color) apply, BUT we need to handle "glow" or specific shapes.
+  // Actually, style already HAS backgroundColor from main loop.
+  // The issue was "Exploding Square".
+  // The main loop (line 84) sets backgroundColor: renderable.color.
+  // If we want a nice particle, we might want a rounded generic shape or image.
+
+  // For now, let's make particles rounded by default if they are small, or custom.
+  // Override borderRadius in style
+  const particleStyle = {
+    ...style,
+    borderRadius: style.width / 2, // Circle by default
+  };
+
+  return (
+    <View key={entity.id} style={[particleStyle, styles.container]} />
   );
 };
 

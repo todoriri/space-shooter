@@ -220,8 +220,14 @@ const handleBulletMovement = (entity: GameEntity, deltaTime: number, entities: R
 
     // Check if bullet has expired
     if (bulletComp.age > bulletComp.lifetime) {
-      releaseBullet(entity);
-      delete entities[entity.id];
+      // Special case for Bomb: Do not return to pool, just destroy
+      // This prevents the massive bomb object from polluting the bullet pool
+      if (entity.tags.includes('bomb')) {
+        delete entities[entity.id];
+      } else {
+        releaseBullet(entity);
+        delete entities[entity.id];
+      }
       return;
     }
   }
@@ -268,8 +274,17 @@ const applyScreenBoundaries = (entity: GameEntity) => {
   switch (entity.type) {
     case EntityType.PLAYER:
       // Player stays within screen bounds
-      position.x = clamp(position.x, width / 2, CURRENT_SCREEN_WIDTH - width / 2);
-      position.y = clamp(position.y, height / 2, CURRENT_SCREEN_HEIGHT - height / 2);
+      // Player stays within screen bounds
+      const clampedX = clamp(position.x, width / 2, CURRENT_SCREEN_WIDTH - width / 2);
+      const clampedY = clamp(position.y, height / 2, CURRENT_SCREEN_HEIGHT - height / 2);
+
+      if (Math.abs(clampedY - position.y) > 100) {
+        // This would be the jump!
+        // But why does it wrap?
+      }
+
+      position.x = clampedX;
+      position.y = clampedY;
       break;
 
     case EntityType.ENEMY:

@@ -10,6 +10,7 @@ import { WaveSystem } from './systems/WaveSystem';
 import { ParticleSystem, handleParticleEvent, createBombEffect } from './systems/ParticleSystem';
 import { RenderingSystem } from './systems/RenderingSystem';
 import { PlayerSystem } from './systems/PlayerSystem';
+import { ShakeSystem } from './systems/ShakeSystem';
 import { TouchControls } from '../components/game/TouchControls';
 import { createPlayerEntity } from './entities/Player';
 import { createEnemyEntity, createEnemyWave, releaseEnemy } from './entities/Enemy';
@@ -218,6 +219,11 @@ export const SpaceShooterGame = React.forwardRef<any, SpaceShooterGameProps>(({
         events: any[];
       }) => {
         return ParticleSystem(entities, { time, dispatch, events } as any);
+      },
+
+      // Shake System - handles screen shake calculations
+      (entities: Record<string, GameEntity>, { time }: { time: { delta: number; current: number } }) => {
+        return ShakeSystem(entities, { time });
       },
 
       // Stress Test System (Dev only or hidden)

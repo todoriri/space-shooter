@@ -67,6 +67,7 @@ export interface EnemyComponent {
   phase?: number;
   attackPattern?: string;
   patternCooldown?: number;
+  hitFlashTimer?: number;
 }
 
 export interface BulletComponent {
@@ -186,7 +187,13 @@ export enum PowerUpType {
   SCORE = 'score',
 }
 
-// Game Entity with ECS components
+// Screen Shake Component
+export interface ScreenShakeComponent {
+  trauma: number; // 0 to 1
+  maxOffset: number;
+  currentOffset: { x: number; y: number };
+}
+
 export interface GameEntity {
   id: string;
   type: EntityType;
@@ -205,6 +212,7 @@ export interface GameEntity {
     renderable?: Renderable;
     waveManager?: WaveManagerComponent;
     floatingText?: FloatingTextComponent;
+    screenShake?: ScreenShakeComponent;
   };
 }
 

@@ -350,10 +350,73 @@ export const createBombEffect = (
 
   const blastParams = particle;
 
-  // 2. Secondary sparkles/debris (optional, keeping it simple for now to ensure performance)
-  // We can add more particles here if needed, but one massive scaling sprite might be enough for the "Nova" effect.
+  const particles = [blastParams];
 
-  return [blastParams];
+  // 2. Secondary Shockwave (faster, smaller)
+  const innerShockwave = particlePool.acquire();
+  innerShockwave.id = `bomb_shockwave_${Date.now()}`;
+  innerShockwave.type = 'particle' as EntityType;
+  innerShockwave.active = true;
+  innerShockwave.tags = ['particle', 'bomb_shockwave'];
+  innerShockwave.particleType = ParticleType.BOMB_EXPLOSION; // Reuse behavior but different params
+  innerShockwave.maxAge = duration / 1500; // Faster
+  innerShockwave.initialSize = screenSize.width * 0.4;
+  innerShockwave.initialColor = '#FFFF00';
+  innerShockwave.components = {
+    position: {
+      x: screenSize.width / 2,
+      y: screenSize.height / 2,
+      width: screenSize.width * 0.4,
+      height: screenSize.width * 0.4,
+    },
+    renderable: {
+      visible: true,
+      zIndex: 21,
+      color: '#FFFF00',
+      alpha: 0.8,
+      glowEffect: true,
+    }
+  };
+  particles.push(innerShockwave);
+
+  // 3. Debris particles
+  const debrisCount = 16;
+  for (let i = 0; i < debrisCount; i++) {
+    const angle = (Math.PI * 2 * i) / debrisCount;
+    const debris = particlePool.acquire();
+    debris.id = `bomb_debris_${Date.now()}_${i}`;
+    debris.active = true;
+    debris.tags = ['particle', 'debris'];
+    debris.particleType = ParticleType.EXPLOSION; // Reuse explosion behavior
+    debris.maxAge = 1.0;
+    debris.initialSize = 10;
+    debris.initialColor = '#FFFFFF';
+
+    debris.components = {
+      position: {
+        x: screenSize.width / 2,
+        y: screenSize.height / 2,
+        width: 10,
+        height: 10,
+      },
+      velocity: {
+        x: Math.cos(angle) * 300,
+        y: Math.sin(angle) * 300,
+      },
+      renderable: {
+        visible: true,
+        zIndex: 22,
+        color: '#FFFFFF',
+        alpha: 1,
+        glowEffect: true,
+      }
+    };
+    // Custom fade behavior
+    (debris as any).fadeOut = true;
+    particles.push(debris);
+  }
+
+  return particles;
 };
 
 // Create engine trail effect

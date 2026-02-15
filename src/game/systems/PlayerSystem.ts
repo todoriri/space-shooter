@@ -68,7 +68,7 @@ export const PlayerSystem = (
     // Smoothly interpolate CURRENT position towards TARGET position
     // Lerp factor: 0.2 gives good responsiveness with slight weight. 
     // Higher = snappier, Lower = smoother/laggy.
-    const smoothingFactor = 0.2;
+    const smoothingFactor = 0.6; // Increased from 0.2 for better agility per user feedback
 
     position.x += (playerComp.targetPosition.x - position.x) * smoothingFactor;
     position.y += (playerComp.targetPosition.y - position.y) * smoothingFactor;
@@ -196,9 +196,10 @@ export const PlayerSystem = (
 
             // Create Bomb Entity (persistent area of effect)
             const bombId = `bomb_${now}`;
-            const screenWidth = 400;
-            const screenHeight = 800;
-            const bombSize = screenWidth * 0.8;
+            // Use actual screen dimensions (captured at top of file, or passed in?)
+            // Dimensions.get is available at module level.
+            const { width: sWidth, height: sHeight } = Dimensions.get('window');
+            const bombSize = sWidth * 0.8;
 
             entities[bombId] = {
                 id: bombId,
@@ -207,8 +208,8 @@ export const PlayerSystem = (
                 tags: ['bomb', 'player_bullet'],
                 components: {
                     position: {
-                        x: (screenWidth - bombSize) / 2, // Center horizontally
-                        y: (screenHeight - bombSize) / 2, // Center vertically
+                        x: (sWidth - bombSize) / 2, // Center horizontally
+                        y: (sHeight - bombSize) / 2, // Center vertically
                         width: bombSize,
                         height: bombSize,
                         rotation: 0
@@ -238,9 +239,9 @@ export const PlayerSystem = (
             // DIRECTLY ADD BOMB PARTICLES
             // This prevents needing to round-trip through GameEngine and setEntities
             const bombParticles = createBombEffect(
-                { x: (screenWidth - bombSize) / 2, y: (screenHeight - bombSize) / 2 },
+                { x: (sWidth - bombSize) / 2, y: (sHeight - bombSize) / 2 },
                 3000,
-                { width: screenWidth, height: screenHeight }
+                { width: sWidth, height: sHeight }
             );
 
             bombParticles.forEach(p => {

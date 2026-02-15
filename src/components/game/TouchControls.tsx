@@ -64,8 +64,13 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
         const { locationX, locationY } = evt.nativeEvent;
 
         // Calculate delta for 1:1 movement
-        const dx = locationX - lastTouchRef.current.x;
-        const dy = locationY - lastTouchRef.current.y;
+        const rawDx = locationX - lastTouchRef.current.x;
+        const rawDy = locationY - lastTouchRef.current.y;
+
+        // Clamp delta to prevent huge jumps (e.g. from glitchy touches or frame drops)
+        const MAX_DELTA = 50;
+        const dx = Math.max(-MAX_DELTA, Math.min(MAX_DELTA, rawDx));
+        const dy = Math.max(-MAX_DELTA, Math.min(MAX_DELTA, rawDy));
 
         lastTouchRef.current = { x: locationX, y: locationY };
 

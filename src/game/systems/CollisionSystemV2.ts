@@ -114,8 +114,8 @@ const getCollisionType = (type1: EntityType, type2: EntityType): CollisionType |
       return 'bullet-enemy';
     case 'bullet-player':
       return 'bullet-player';
-    case 'enemy-enemy':
-      return 'enemy-enemy';
+    // case 'enemy-enemy': // Disabled per user feedback
+    //   return 'enemy-enemy';
     default:
       return null;
   }
@@ -225,6 +225,7 @@ const handlePlayerEnemyCollision = (
 
   // If player health reaches 0
   if (playerHealth.current <= 0) {
+    console.log(`[CollisionSystem] Player destroyed by Enemy at (${position.x}, ${position.y}). EnemyType: ${enemyComp?.type || 'unknown'}`);
     dispatch({
       type: 'playerHit',
       data: { position, fatal: true },
@@ -244,6 +245,12 @@ const handlePlayerEnemyCollision = (
     // Add score from enemy destruction
     if (playerComp && enemyComp) {
       playerComp.score += enemyComp.scoreValue || 100;
+    }
+
+    // TRIGGER SCREEN SHAKE (Medium Trauma)
+    const systemId = Object.keys(entities).find(id => entities[id].components.screenShake);
+    if (systemId && entities[systemId].components.screenShake) {
+      entities[systemId].components.screenShake.trauma = Math.min(1, entities[systemId].components.screenShake.trauma + 0.3);
     }
 
     dispatch({
@@ -267,6 +274,9 @@ const handlePlayerEnemyCollision = (
         },
       });
     }
+  } else if (enemyComp) {
+    // Enemy Survived: TRIGGER HIT FLASH
+    enemyComp.hitFlashTimer = 5; // Flash for ~5 frames (or handled by time in RenderingSystem)
   }
 };
 
@@ -360,10 +370,16 @@ const handleBulletEnemyCollision = (
       playerEntity.components.player.score += enemyComp.scoreValue || 100;
     }
 
+    // Use enemy position for explosion, not collision midpoint
+    const explosionPos = enemyEntity.components.position
+      ? { ...enemyEntity.components.position }
+      : position;
+
+    // Dispatch explosion event at enemy location
     dispatch({
       type: 'enemyDestroyed',
       data: {
-        position,
+        position: explosionPos,
         enemyType: enemyComp?.type || 'unknown',
         points: enemyComp?.scoreValue || 100,
       },
@@ -381,6 +397,15 @@ const handleBulletEnemyCollision = (
         },
       });
     }
+
+    // TRIGGER SCREEN SHAKE (Small Trauma)
+    const systemId = Object.keys(entities).find(id => entities[id].components.screenShake);
+    if (systemId && entities[systemId].components.screenShake) {
+      entities[systemId].components.screenShake.trauma = Math.min(1, entities[systemId].components.screenShake.trauma + 0.1);
+    }
+  } else if (enemyComp) {
+    // Enemy Hit but alive: Flash
+    enemyComp.hitFlashTimer = 5;
   }
 };
 
@@ -401,6 +426,9 @@ const handleBulletPlayerCollision = (
 
   // Skip if player is invulnerable
   if (playerHealth.invulnerable && (playerHealth.invulnerableTimer || 0) > currentTime) return;
+
+  // Skip if bullet belongs to player (Friendly Fire - Fixes Bomb killing player)
+  if (bulletComp.ownerId === playerEntity.id || bulletComp.type === BulletType.PLAYER) return;
 
   // Apply damage
   const damage = bulletComp.damage || 20;
@@ -429,6 +457,10 @@ const handleBulletPlayerCollision = (
     type: 'playerHit',
     data: { position, fatal: playerHealth.current <= 0 },
   });
+
+  if (playerHealth.current <= 0) {
+    console.log(`[CollisionSystem] Player destroyed by Bullet at (${position.x}, ${position.y})`);
+  }
 };
 
 // Enemy-Enemy collision (bounce off each other)

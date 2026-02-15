@@ -109,8 +109,26 @@ const EntitySpriteComponent: React.FC<EntitySpriteProps> = ({
                 </View>
             )}
             {/* Additional decorations based on type */}
-            {/* type === EntityType.PLAYER check removed since handled above */}
-            {type === EntityType.POWER_UP && <View style={getPowerUpIconStyle(subType as PowerUpType)} />}
+            {/* Additional decorations based on type */}
+            {type === EntityType.POWER_UP && (
+                <>
+                    {/* Special case for complex shapes like Cross */}
+                    {(subType === PowerUpType.HEALTH) ? (
+                        <View style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }}>
+                            <View style={{ position: 'absolute', width: '20%', height: '60%', backgroundColor: '#00FF00' }} />
+                            <View style={{ position: 'absolute', width: '60%', height: '20%', backgroundColor: '#00FF00' }} />
+                        </View>
+                    ) : (subType === PowerUpType.MULTI_SHOT) ? (
+                        <View style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }}>
+                            <View style={{ position: 'absolute', width: '15%', height: '15%', borderRadius: 99, backgroundColor: '#00FFFF', top: '25%' }} />
+                            <View style={{ position: 'absolute', width: '15%', height: '15%', borderRadius: 99, backgroundColor: '#00FFFF', bottom: '25%', left: '25%' }} />
+                            <View style={{ position: 'absolute', width: '15%', height: '15%', borderRadius: 99, backgroundColor: '#00FFFF', bottom: '25%', right: '25%' }} />
+                        </View>
+                    ) : (
+                        <View style={getPowerUpIconStyle(subType as PowerUpType)} />
+                    )}
+                </>
+            )}
         </View>
     );
 };
@@ -174,48 +192,50 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     powerUpIcon: {
-        width: '50%',
-        height: '50%',
+        width: '60%',
+        height: '60%',
         backgroundColor: '#FFFFFF',
-        borderRadius: 4,
     },
     shieldIcon: {
         width: '60%',
         height: '60%',
-        backgroundColor: '#FFFFFF',
-        borderRadius: 999,
-        borderWidth: 2,
+        backgroundColor: 'transparent',
+        borderWidth: 3,
         borderColor: '#29B6F6',
+        borderRadius: 999, // Circle
     },
     rapidFireIcon: {
-        width: '50%',
-        height: '50%',
-        backgroundColor: '#FFFFFF',
-        transform: [{ rotate: '45deg' }],
+        width: 0,
+        height: 0,
+        backgroundColor: 'transparent',
+        borderStyle: 'solid',
+        borderLeftWidth: 8,
+        borderRightWidth: 8,
+        borderBottomWidth: 16,
+        borderLeftColor: 'transparent',
+        borderRightColor: 'transparent',
+        borderBottomColor: '#FFD700', // Triangle
+        transform: [{ translateY: -2 }],
     },
     multiShotIcon: {
-        width: '50%',
-        height: '50%',
-        backgroundColor: '#FFFFFF',
-        borderRadius: 999,
+        // Handled by custom render
     },
     bombIcon: {
         width: '50%',
         height: '50%',
-        backgroundColor: '#FFFFFF',
-        borderRadius: 999,
+        backgroundColor: '#FF0000',
+        borderRadius: 4, // Square
     },
     healthIcon: {
-        width: '50%',
-        height: '50%',
-        backgroundColor: '#FFFFFF',
-        borderRadius: 2,
+        // Handled by custom render
     },
     scoreIcon: {
-        width: '50%',
-        height: '50%',
-        backgroundColor: '#FFFFFF',
-        borderRadius: 999,
+        width: '40%',
+        height: '40%',
+        backgroundColor: '#FFFF00',
+        borderRadius: 999, // Coin
+        borderWidth: 1,
+        borderColor: '#DAA520',
     },
     // Generic
     generic: {},
