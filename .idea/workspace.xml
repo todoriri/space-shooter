@@ -6,16 +6,17 @@
   <component name="ChangeListManager">
     <list default="true" id="67a12ec0-ccec-4f67-9313-a577fff42ffd" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/HANDOFF.md" beforeDir="false" afterPath="$PROJECT_DIR$/HANDOFF.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/ARCHITECTURE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/ARCHITECTURE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/IMPROVEMENT_PLAN.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/IMPROVEMENT_PLAN.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/components/game/TouchControls.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/game/TouchControls.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/game/GameEngine.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/GameEngine.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/game/components/rendering/EntitySprite.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/components/rendering/EntitySprite.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/game/systems/CollisionSystemV2.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/systems/CollisionSystemV2.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/game/systems/MovementSystemV2.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/systems/MovementSystemV2.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/game/systems/ParticleSystem.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/systems/ParticleSystem.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/game/systems/PlayerSystem.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/systems/PlayerSystem.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/game/systems/PowerUpSystem.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/systems/PowerUpSystem.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/game/systems/RenderingSystem.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/game/systems/RenderingSystem.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/types/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/types/index.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

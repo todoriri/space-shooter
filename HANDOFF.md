@@ -392,6 +392,7 @@ expo export --platform web
 | 2026-02-13 | 1.0.0 | Initial handoff protocol | Claude Code |
 | 2026-02-13 | 2.0.0 | Updated with Phase 2 completion status | Claude Code |
 | 2026-02-13 | 3.0.0 | Updated with Phase 3 completion status | Claude Code |
+| 2026-02-15 | 4.0.0 | Code review fixes: VisualEffectsSystem, type safety, __DEV__ logs | Claude Code |
 
 ---
 

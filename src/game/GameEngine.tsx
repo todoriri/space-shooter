@@ -11,6 +11,7 @@ import { ParticleSystem, handleParticleEvent, createBombEffect } from './systems
 import { RenderingSystem } from './systems/RenderingSystem';
 import { PlayerSystem } from './systems/PlayerSystem';
 import { ShakeSystem } from './systems/ShakeSystem';
+import { VisualEffectsSystem } from './systems/VisualEffectsSystem';
 import { TouchControls } from '../components/game/TouchControls';
 import { createPlayerEntity } from './entities/Player';
 import { createEnemyEntity, createEnemyWave, releaseEnemy } from './entities/Enemy';
@@ -224,6 +225,11 @@ export const SpaceShooterGame = React.forwardRef<any, SpaceShooterGameProps>(({
       // Shake System - handles screen shake calculations
       (entities: Record<string, GameEntity>, { time }: { time: { delta: number; current: number } }) => {
         return ShakeSystem(entities, { time });
+      },
+
+      // Visual Effects System - handles visual timers like hit flash (must run BEFORE RenderingSystem)
+      (entities: Record<string, GameEntity>, { time }: { time: { delta: number; current: number } }) => {
+        return VisualEffectsSystem(entities, { time });
       },
 
       // Stress Test System (Dev only or hidden)

@@ -133,11 +133,11 @@ const applyPowerUpEffect = (
     case PowerUpType.MULTI_SHOT:
       // Multi-shot - increase weapon level
       const pos = playerEntity.components.position;
-      console.log(`[PowerUpSystem] Collecting MULTI_SHOT. Current WeaponLevel: ${playerComp.weaponLevel}`);
+      if (__DEV__) console.log(`[PowerUpSystem] Collecting MULTI_SHOT. Current WeaponLevel: ${playerComp.weaponLevel}`);
 
       if (playerComp.weaponLevel < 3) {
         playerComp.weaponLevel++;
-        console.log(`[PowerUpSystem] Upgraded WeaponLevel to: ${playerComp.weaponLevel}`);
+        if (__DEV__) console.log(`[PowerUpSystem] Upgraded WeaponLevel to: ${playerComp.weaponLevel}`);
         if (dispatch && pos) {
           dispatch({
             type: 'showFloatingText',
@@ -151,7 +151,7 @@ const applyPowerUpEffect = (
           });
         }
       } else {
-        console.log(`[PowerUpSystem] WeaponLevel Maxed at: ${playerComp.weaponLevel}`);
+        if (__DEV__) console.log(`[PowerUpSystem] WeaponLevel Maxed at: ${playerComp.weaponLevel}`);
         if (dispatch && pos) {
           dispatch({
             type: 'showFloatingText',

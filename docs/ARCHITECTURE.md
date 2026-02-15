@@ -145,6 +145,12 @@ Entities (Game Objects) → Components (Data) → Systems (Logic)
 - Low memory warning responses
 - Auto-save functionality for game state
 
+#### 8. Visual Effects System (`src/game/systems/VisualEffectsSystem.ts`)
+- Handles visual-only timers (hit flash, invulnerability blink)
+- Runs before RenderingSystem to ensure visual state is current
+- Separates visual logic from render phase for cleaner architecture
+- Frame-based timer decrementation for consistent visual effects
+
 ### Game State Management
 
 #### Game State Structure (`src/game/GameState.ts`)
@@ -364,8 +370,12 @@ Game state is currently split across:
 | Magic numbers | Multiple files | Medium | ✅ Extracted to constants |
 | Entity pool ID generation | Enemy.ts:43-45 | Medium | ✅ Fixed |
 | No unit tests | Game logic | Medium | ✅ 13 tests passing |
+| Duplicate break statement | ParticleSystem.ts:228 | Low | ✅ Fixed |
+| Render phase mutation | RenderingSystem.tsx:218 | Medium | ✅ Fixed |
+| Type safety (EntityType.PARTICLE) | ParticleSystem.ts | Low | ✅ Fixed |
+| Hardcoded delta time | PlayerSystem.ts:23 | Low | ✅ Fixed |
 
-### Files Addressed (Sprint 1 & 2 Complete)
+### Files Addressed (Sprint 1, 2 & 3 Complete)
 
 ```
 src/game/GameEngine.tsx
@@ -383,6 +393,25 @@ src/game/systems/CollisionSystemV2.ts
 src/game/entities/Enemy.ts
 └── ✅ Fixed: Single ID generation with typed pool params
 
+src/game/systems/ParticleSystem.ts
+├── ✅ Fixed: Duplicate break statement removed
+└── ✅ Fixed: EntityType.PARTICLE type safety
+
+src/game/systems/RenderingSystem.tsx
+├── ✅ Fixed: Hit flash moved to VisualEffectsSystem
+└── ✅ Fixed: EntityType.PARTICLE in switch case
+
+src/game/systems/PlayerSystem.ts
+├── ✅ Fixed: Removed unused hardcoded deltaTime
+├── ✅ Fixed: Console.log wrapped in __DEV__
+└── ✅ Cleaned: Removed commented-out code
+
+src/game/systems/PowerUpSystem.ts
+└── ✅ Fixed: Console.log wrapped in __DEV__
+
+src/components/game/TouchControls.tsx
+└── ✅ Fixed: Console.log wrapped in __DEV__
+
 __tests__/unit/game/foundation.test.ts
 └── ✅ Updated: Tests now pass with V2 systems
 ```
@@ -390,10 +419,11 @@ __tests__/unit/game/foundation.test.ts
 ### New Files Created
 
 ```
-src/constants/GameConfig.ts    - Centralized game configuration
-src/constants/index.ts         - Module exports
-src/utils/Debug.ts             - Conditional logging utility
-docs/IMPROVEMENT_PLAN.md       - Detailed improvement tracking
+src/constants/GameConfig.ts       - Centralized game configuration
+src/constants/index.ts            - Module exports
+src/utils/Debug.ts                - Conditional logging utility
+src/game/systems/VisualEffectsSystem.ts - Visual timer system
+docs/IMPROVEMENT_PLAN.md          - Detailed improvement tracking
 ```
 
 ### Improvement Roadmap
@@ -402,11 +432,11 @@ See [IMPROVEMENT_PLAN.md](./IMPROVEMENT_PLAN.md) for detailed implementation ste
 
 - **Sprint 1:** ✅ Critical bug fixes - Complete
 - **Sprint 2:** ✅ Code quality & tests - Complete
-- **Sprint 3:** 🔜 Architecture consolidation
-- **Sprint 4:** 🔜 Polish & documentation
+- **Sprint 3:** ✅ Architecture consolidation - Complete
+- **Sprint 4:** ✅ Polish & documentation - Complete
 
 ---
 
-*Last Updated: 2026-02-14*
-*Architecture Version: 4.3*
-*Status: Sprint 1 & 2 Complete, All Tests Passing*
+*Last Updated: 2026-02-15*
+*Architecture Version: 4.4*
+*Status: All Sprints Complete, Code Review Fixes Applied*

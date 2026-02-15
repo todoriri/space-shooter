@@ -133,8 +133,6 @@ const EntitySpriteComponent: React.FC<EntitySpriteProps> = ({
     );
 };
 
-// ... existing code ...
-
 const styles = StyleSheet.create({
     // Player
     playerShipContainer: {

@@ -14,13 +14,12 @@ export interface InputState {
 export const PlayerSystem = (
     entities: Record<string, GameEntity>,
     { time, dispatch, input }: {
-        time: { current: number };
+        time: { current: number; delta?: number };
         dispatch: (event: any) => void;
         input: InputState;
     }
 ) => {
     const currentTime = time.current;
-    const deltaTime = 16.67; // Approx 60fps frame time in ms since RNGE might not pass delta to systems consistently
 
     // Find player entity
     const playerId = Object.keys(entities).find(id => entities[id].type === EntityType.PLAYER);
@@ -91,16 +90,6 @@ export const PlayerSystem = (
         const trail = createEngineTrailEffect(trailPos);
         entities[trail.id] = trail;
     }
-
-    /* Original Direct Movement Logic - Commented out for Smoothing
-    if (input.move.x !== 0 || input.move.y !== 0) {
-        position.x += input.move.x;
-        position.y += input.move.y;
-
-        // ... boundary checks ...
-        input.move = { x: 0, y: 0 };
-    }
-    */
 
     // 2. Handle Shooting
     if (input.shooting) {
@@ -182,15 +171,15 @@ export const PlayerSystem = (
 
     // 3. Handle Bomb
     if (input.bomb) {
-        console.log('[PlayerSystem] Bomb input detected');
+        if (__DEV__) console.log('[PlayerSystem] Bomb input detected');
         const now = Date.now();
         const cooldown = (playerComp.bombCooldown || 20) * 1000;
         const timeSinceLast = now - (playerComp.lastBombTime || 0);
 
-        console.log(`[PlayerSystem] Bomb cooldown check: ${timeSinceLast}ms / ${cooldown}ms`);
+        if (__DEV__) console.log(`[PlayerSystem] Bomb cooldown check: ${timeSinceLast}ms / ${cooldown}ms`);
 
         if (timeSinceLast >= cooldown) {
-            console.log('[PlayerSystem] Firing Bomb!');
+            if (__DEV__) console.log('[PlayerSystem] Firing Bomb!');
             // Trigger Bomb
             playerComp.lastBombTime = now;
 
@@ -224,7 +213,7 @@ export const PlayerSystem = (
                         pierce: 9999, // Infinite pierce
                         currentPierce: 9999,
                         ownerId: player.id,
-                        lifetime: 3000, // 3 seconds
+                        lifetime: 3.0, // 3 seconds (must match units with age increment in MovementSystem)
                         age: 0
                     },
                     renderable: {

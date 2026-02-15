@@ -90,9 +90,9 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
 
   // Bomb button press handler
   const handleBombPress = () => {
-    console.log('[TouchControls] Bomb button pressed');
+    if (__DEV__) console.log('[TouchControls] Bomb button pressed');
     if (!onBomb) {
-      console.warn('[TouchControls] onBomb prop is missing!');
+      if (__DEV__) console.warn('[TouchControls] onBomb prop is missing!');
       return;
     }
 

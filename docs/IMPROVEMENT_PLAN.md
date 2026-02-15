@@ -25,6 +25,11 @@
 | Unit tests passing | P2 | ✅ Complete | 2026-02-14 |
 | Typed event bus | P3 | ✅ Complete | 2026-02-15 |
 | Performance overlay | P3 | ✅ Complete | 2026-02-15 |
+| Duplicate break statement | P2 | ✅ Fixed | 2026-02-15 |
+| Render phase mutation | P2 | ✅ Fixed | 2026-02-15 |
+| Type safety (EntityType.PARTICLE) | P3 | ✅ Fixed | 2026-02-15 |
+| Hardcoded delta time | P3 | ✅ Fixed | 2026-02-15 |
+| Visual effects system | P2 | ✅ Complete | 2026-02-15 |
 
 ---
 
@@ -447,6 +452,101 @@ Created dev-only performance overlay with:
 
 ---
 
-*Document Version: 1.3*
+## Sprint 5: Code Review Fixes (2026-02-15)
+
+### Issues Found in Latest Code Review
+
+#### 1. Duplicate Break Statement ✅ FIXED
+**File:** [src/game/systems/ParticleSystem.ts:228-229](src/game/systems/ParticleSystem.ts#L228-L229)
+**Issue:** Duplicate `break` statement in `updateParticleAppearance` switch case
+**Fix:** Removed the duplicate break statement
+
+```typescript
+// BEFORE (buggy)
+case ParticleType.HIT_EFFECT:
+  renderable.alpha = 0.8 * pulse;
+  break;
+  break;  // Duplicate!
+
+// AFTER (fixed)
+case ParticleType.HIT_EFFECT:
+  renderable.alpha = 0.8 * pulse;
+  break;
+```
+
+#### 2. Render Phase State Mutation ✅ FIXED
+**File:** [src/game/systems/RenderingSystem.tsx](src/game/systems/RenderingSystem.tsx)
+**Issue:** Hit flash timer was being decremented during render phase (anti-pattern)
+**Fix:** Created new `VisualEffectsSystem` to handle visual timers, runs before RenderingSystem
+
+**New File:** [src/game/systems/VisualEffectsSystem.ts](src/game/systems/VisualEffectsSystem.ts)
+```typescript
+// Visual timers now handled in dedicated system
+export const VisualEffectsSystem = (entities, { time }) => {
+  // Handle enemy hit flash timer
+  if (entity.type === EntityType.ENEMY) {
+    const enemyComp = entity.components.enemy;
+    if (enemyComp?.hitFlashTimer > 0) {
+      enemyComp.hitFlashTimer -= 1;
+    }
+  }
+  return entities;
+};
+```
+
+#### 3. Type Safety Issues ✅ FIXED
+**Files:** [src/game/systems/ParticleSystem.ts](src/game/systems/ParticleSystem.ts), [src/game/systems/RenderingSystem.tsx](src/game/systems/RenderingSystem.tsx)
+**Issue:** Using `'particle' as EntityType` instead of `EntityType.PARTICLE`
+**Fix:** Replaced all string literals with proper enum values
+
+```typescript
+// BEFORE
+type: 'particle' as EntityType,
+case 'particle':
+
+// AFTER
+type: EntityType.PARTICLE,
+case EntityType.PARTICLE:
+```
+
+#### 4. Debug Logging in Production ✅ FIXED
+**Files:** Multiple (PlayerSystem, PowerUpSystem, TouchControls, CollisionSystemV2)
+**Issue:** Console.log statements not wrapped in `__DEV__` checks
+**Fix:** Wrapped all debug logs with `__DEV__` conditionals
+
+```typescript
+// BEFORE
+console.log('[PlayerSystem] Bomb input detected');
+
+// AFTER
+if (__DEV__) console.log('[PlayerSystem] Bomb input detected');
+```
+
+#### 5. Unused Hardcoded Delta Time ✅ FIXED
+**File:** [src/game/systems/PlayerSystem.ts](src/game/systems/PlayerSystem.ts)
+**Issue:** `deltaTime = 16.67` was defined but never used
+**Fix:** Removed the unused variable
+
+#### 6. Commented-Out Code Cleanup ✅ COMPLETE
+**Files:** PlayerSystem.ts, CollisionSystemV2.ts, EntitySprite.tsx
+**Issue:** Dead commented code cluttering the codebase
+**Fix:** Removed all commented-out code blocks
+
+### New File Created
+- `src/game/systems/VisualEffectsSystem.ts` - Handles visual-only timers (hit flash, etc.)
+
+### Files Modified
+- `src/game/systems/ParticleSystem.ts` - Fixed duplicate break, type safety
+- `src/game/systems/RenderingSystem.tsx` - Removed render-phase mutation, type safety
+- `src/game/systems/PlayerSystem.ts` - Removed unused delta, __DEV__ logs, cleaned comments
+- `src/game/systems/PowerUpSystem.ts` - __DEV__ logs
+- `src/game/systems/CollisionSystemV2.ts` - __DEV__ logs, cleaned comments
+- `src/components/game/TouchControls.tsx` - __DEV__ logs
+- `src/game/components/rendering/EntitySprite.tsx` - Cleaned placeholder comments
+- `src/game/GameEngine.tsx` - Added VisualEffectsSystem to game loop
+
+---
+
+*Document Version: 1.4*
 *Last Updated: 2026-02-15*
-*Review Status: All Sprints Complete, Improvement Plan Finished*
+*Review Status: All Sprints Complete, Code Review Fixes Applied*

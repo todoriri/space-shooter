@@ -144,7 +144,7 @@ export const RenderingSystem = (entities: Record<string, GameEntity>) => {
       case EntityType.FLOATING_TEXT:
         renderComponent = renderFloatingText(entity, entityStyle);
         break;
-      case 'particle': // Explicit check for particle string type if EntityType enum isn't updated yet
+      case EntityType.PARTICLE:
         renderComponent = renderParticle(entity, entityStyle);
         break;
       default:
@@ -214,16 +214,10 @@ const renderEnemy = (entity: GameEntity, style: any): JSX.Element => {
   // Actually style contains position and rotation, so we keep it but override bg color
   const containerStyle = { ...style, backgroundColor: 'transparent' };
 
-  // Hit Flash Logic
+  // Hit Flash Logic - just check the value, timer is decremented by VisualEffectsSystem
   if (enemyComp?.hitFlashTimer && enemyComp.hitFlashTimer > 0) {
-    // Decrease timer (hacky: modifying state in render is bad practice but common for simple visual-only effects in RNGE)
-    // Ideally this should be in a system, but doing it here ensures it's tied to frames.
-    // Better: The ShakeSystem or MovementSystem should decrement this.
-    // For now, let's just use it to determine color.
-    // FLASH WHITE
-    enemyComp.hitFlashTimer -= 1; // Decrement for next frame
-    // We will override the color prop passed to EntitySprite
-    if (renderable) renderable.color = '#FFFFFF'; // Force white
+    // Flash white when hit
+    if (renderable) renderable.color = '#FFFFFF';
   }
 
   const { width, height } = style;

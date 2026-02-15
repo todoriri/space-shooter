@@ -40,7 +40,7 @@ export interface ParticleEntity extends GameEntity {
 const particlePool = new EntityPool<ParticleEntity>(
   () => ({
     id: `particle_${Date.now()}_${Math.random()}`,
-    type: 'particle' as EntityType,
+    type: EntityType.PARTICLE,
     active: true,
     tags: ['particle'],
     particleType: ParticleType.EXPLOSION, // Default
@@ -226,7 +226,6 @@ const updateParticleAppearance = (particle: ParticleEntity, deltaTime: number) =
       const pulse = Math.sin(ageRatio * Math.PI * 10) * 0.5 + 0.5;
       renderable.alpha = 0.8 * pulse;
       break;
-      break;
 
     case ParticleType.BOMB_EXPLOSION:
       // Bomb explosion: Expand massive shockwave, fade out slowly
@@ -271,7 +270,7 @@ export const createExplosionEffect = (
 
     const particle = particlePool.acquire();
     particle.id = `explosion_particle_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 5)}`;
-    particle.type = 'particle' as EntityType;
+    particle.type = EntityType.PARTICLE;
     particle.active = true;
     particle.tags = ['particle', 'explosion'];
     particle.particleType = ParticleType.EXPLOSION;
@@ -322,7 +321,7 @@ export const createBombEffect = (
   // 1. The main blast wave
   const particle = particlePool.acquire();
   particle.id = `bomb_blast_${Date.now()}`;
-  particle.type = 'particle' as EntityType;
+  particle.type = EntityType.PARTICLE;
   particle.active = true;
   particle.tags = ['particle', 'bomb_blast'];
   particle.particleType = ParticleType.BOMB_EXPLOSION;
@@ -355,7 +354,7 @@ export const createBombEffect = (
   // 2. Secondary Shockwave (faster, smaller)
   const innerShockwave = particlePool.acquire();
   innerShockwave.id = `bomb_shockwave_${Date.now()}`;
-  innerShockwave.type = 'particle' as EntityType;
+  innerShockwave.type = EntityType.PARTICLE;
   innerShockwave.active = true;
   innerShockwave.tags = ['particle', 'bomb_shockwave'];
   innerShockwave.particleType = ParticleType.BOMB_EXPLOSION; // Reuse behavior but different params

@@ -225,7 +225,7 @@ const handlePlayerEnemyCollision = (
 
   // If player health reaches 0
   if (playerHealth.current <= 0) {
-    console.log(`[CollisionSystem] Player destroyed by Enemy at (${position.x}, ${position.y}). EnemyType: ${enemyComp?.type || 'unknown'}`);
+    if (__DEV__) console.log(`[CollisionSystem] Player destroyed by Enemy at (${position.x}, ${position.y}). EnemyType: ${enemyComp?.type || 'unknown'}`);
     dispatch({
       type: 'playerHit',
       data: { position, fatal: true },
@@ -459,7 +459,7 @@ const handleBulletPlayerCollision = (
   });
 
   if (playerHealth.current <= 0) {
-    console.log(`[CollisionSystem] Player destroyed by Bullet at (${position.x}, ${position.y})`);
+    if (__DEV__) console.log(`[CollisionSystem] Player destroyed by Bullet at (${position.x}, ${position.y})`);
   }
 };
 
@@ -495,8 +495,6 @@ const handleEnemyEnemyCollision = (enemy1: GameEntity, enemy2: GameEntity) => {
     }
   }
 };
-
-// Apply power-up effect to player
 
 // Helper to find player entity
 const findPlayerEntity = (entities: Record<string, GameEntity>): GameEntity | null => {
