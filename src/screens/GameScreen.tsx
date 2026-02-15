@@ -31,10 +31,16 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   onGameOver,
   onBackToMenu,
 }) => {
-  const [isPaused, setIsPaused] = useState(false);
+  // Local state for UI only (if needed), but we rely on gameState.isPaused
+  // const [isPaused, setIsPaused] = useState(false); <- REMOVED
 
   const [showPauseMenu, setShowPauseMenu] = useState(false);
   const gameEngineRef = useRef<any>(null);
+
+  // Sync local pause menu state with global pause state
+  useEffect(() => {
+    setShowPauseMenu(gameState.isPaused);
+  }, [gameState.isPaused]);
 
   // Handle Android back button
   useEffect(() => {
@@ -44,17 +50,19 @@ export const GameScreen: React.FC<GameScreenProps> = ({
     );
 
     return () => backHandler.remove();
-  }, [isPaused]);
+  }, [gameState.isPaused]);
 
   const handleBackPress = () => {
-    if (!isPaused) {
+    if (!gameState.isPaused) {
       togglePause();
-      setIsPaused(true);
-      setShowPauseMenu(true);
+      // setIsPaused(true); <- REMOVED
+      // setShowPauseMenu(true); <- Handled by useEffect
       return true;
     }
     return false;
   };
+
+  const [isRunning, setIsRunning] = useState(true);
 
   // Handle score updates
   const handleScoreUpdate = (score: number) => {
@@ -64,27 +72,32 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   // Handle game over
   const handleGameOver = (reason: string) => {
     console.log(`Game over: ${reason}`);
+    setIsRunning(false); // Stop the game engine
     onGameOver(gameState.score, reason);
   };
 
   // Handle pause
   const handlePause = () => {
-    togglePause();
-    setIsPaused(!isPaused);
-    setShowPauseMenu(!isPaused);
+    if (!gameState.isPaused && isRunning) {
+      togglePause();
+    }
   };
 
   // Handle resume
   const handleResume = () => {
-    togglePause();
-    setIsPaused(false);
-    setShowPauseMenu(false);
+    if (gameState.isPaused) {
+      togglePause();
+    }
   };
 
   // Handle quit to menu
   const handleQuit = () => {
     // Play sound effect
     assetManager.playSound('button_click');
+
+    // Ensure we unpause before leaving, or handle reset
+    if (gameState.isPaused) togglePause();
+    setIsRunning(false);
 
     // Navigate back to menu
     onBackToMenu();
@@ -103,14 +116,15 @@ export const GameScreen: React.FC<GameScreenProps> = ({
         onScoreUpdate={handleScoreUpdate}
         onGameOver={handleGameOver}
         onPause={handlePause}
-        isPaused={isPaused}
+        isPaused={gameState.isPaused}
+        running={isRunning && !gameState.isPaused}
         gameState={gameState}
         updateGameState={updateGameState}
         highScore={gameState.highScore}
       />
 
       {/* Game HUD Overlay */}
-      {!showPauseMenu && (
+      {!gameState.isPaused && (
         <View style={styles.hudContainer}>
           {/* Score Display */}
           <View style={styles.scoreContainer}>
@@ -142,7 +156,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       )}
 
       {/* Pause Menu Overlay */}
-      {showPauseMenu && (
+      {gameState.isPaused && (
         <View style={styles.pauseMenuOverlay}>
           <View style={styles.pauseMenuContainer}>
             <Text style={styles.pauseMenuTitle}>GAME PAUSED</Text>
@@ -275,6 +289,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 100,
+    elevation: 100, // Important for Android overlay
   },
   pauseMenuContainer: {
     backgroundColor: 'rgba(20, 20, 40, 0.9)',

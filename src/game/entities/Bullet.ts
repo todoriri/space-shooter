@@ -1,4 +1,32 @@
 import { GameEntity, Position, Velocity, EntityType, BulletType } from '../../types';
+import { EntityPool } from '../../utils/EntityPool';
+
+// Bullet Pool Instance
+const bulletPool = new EntityPool<GameEntity>(
+  () => ({
+    id: `bullet_${Date.now()}_${Math.random()}`,
+    type: EntityType.BULLET,
+    active: true,
+    tags: ['bullet', 'projectile'],
+    components: {}
+  }),
+  (entity) => {
+    entity.active = true;
+    entity.tags = ['bullet', 'projectile'];
+    return entity;
+  },
+  50, // Initial size
+  200 // Max size
+);
+
+/**
+ * Release a bullet back to the pool
+ * @param bullet - Bullet entity to release
+ */
+export const releaseBullet = (bullet: GameEntity): void => {
+  bullet.active = false;
+  bulletPool.release(bullet);
+};
 
 /**
  * Creates a bullet entity
@@ -14,15 +42,11 @@ export const createBulletEntity = (
   bulletType: BulletType = BulletType.PLAYER,
   ownerId?: string
 ): GameEntity => {
-  const bulletId = `bullet_${bulletType}_${Date.now()}`;
+  const bullet = bulletPool.acquire();
+  bullet.id = `bullet_${bulletType}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
 
-  // Base bullet configuration
-  const baseConfig = {
-    id: bulletId,
-    type: EntityType.BULLET,
-    active: true,
-    tags: ['bullet', 'projectile'],
-  };
+  // Base bullet configuration is already set by pool factory/reset
+  // We just need to attach specific components
 
   // Bullet type specific configurations
   const bulletConfigs = {
@@ -50,7 +74,7 @@ export const createBulletEntity = (
           age: 0,
         },
         collider: {
-          type: 'circle',
+          type: 'circle' as const,
           radius: 5,
           isTrigger: true,
           layer: 'player_bullet',
@@ -91,7 +115,7 @@ export const createBulletEntity = (
           age: 0,
         },
         collider: {
-          type: 'circle',
+          type: 'circle' as const,
           radius: 5,
           isTrigger: true,
           layer: 'enemy_bullet',
@@ -134,7 +158,7 @@ export const createBulletEntity = (
           homingStrength: 0.5,
         },
         collider: {
-          type: 'circle',
+          type: 'circle' as const,
           radius: 7,
           isTrigger: true,
           layer: 'player_bullet',
@@ -155,11 +179,9 @@ export const createBulletEntity = (
   };
 
   const config = bulletConfigs[bulletType];
+  bullet.components = config.components;
 
-  return {
-    ...baseConfig,
-    components: config.components,
-  };
+  return bullet;
 };
 
 /**
@@ -345,8 +367,9 @@ export const applyBulletHoming = (
 
   // Limit speed
   const speed = Math.sqrt(newVelocity.x * newVelocity.x + newVelocity.y * newVelocity.y);
-  if (speed > velocity.maxSpeed) {
-    const scale = velocity.maxSpeed / speed;
+  const maxSpeed = velocity.maxSpeed || 800;
+  if (speed > maxSpeed) {
+    const scale = maxSpeed / speed;
     newVelocity.x *= scale;
     newVelocity.y *= scale;
   }
@@ -516,7 +539,8 @@ export const handleBulletRicochet = (
 
   if (ricocheted) {
     // Reduce ricochet count
-    const newRicochet = bulletComp.currentRicochet - 1;
+    const currentRicochet = bulletComp.currentRicochet ?? bulletComp.ricochetCount ?? 0;
+    const newRicochet = currentRicochet - 1;
 
     if (newRicochet <= 0) {
       return null; // No more ricochets, destroy bullet

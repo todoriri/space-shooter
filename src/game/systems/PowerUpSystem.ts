@@ -50,7 +50,7 @@ const updatePlayerPowerUps = (
   // Apply effects for power-ups that haven't been applied yet
   activePowerUps.forEach((powerUp: ActivePowerUp) => {
     if (!powerUp.effectApplied) {
-      applyPowerUpEffect(playerEntity, powerUp.type);
+      applyPowerUpEffect(playerEntity, powerUp.type, dispatch);
       powerUp.effectApplied = true;
 
       // Dispatch power-up activated event
@@ -106,7 +106,11 @@ const updatePowerUpEntity = (powerUpEntity: GameEntity, currentTime: number) => 
 };
 
 // Apply power-up effect to player
-const applyPowerUpEffect = (playerEntity: GameEntity, powerUpType: PowerUpType) => {
+const applyPowerUpEffect = (
+  playerEntity: GameEntity,
+  powerUpType: PowerUpType,
+  dispatch?: (event: any) => void
+) => {
   const playerComp = playerEntity.components.player;
   const health = playerEntity.components.health;
 
@@ -127,8 +131,37 @@ const applyPowerUpEffect = (playerEntity: GameEntity, powerUpType: PowerUpType) 
       break;
 
     case PowerUpType.MULTI_SHOT:
-      // Multi-shot - player can shoot multiple bullets
-      // This is handled in the shooting system
+      // Multi-shot - increase weapon level
+      const pos = playerEntity.components.position;
+
+      if (playerComp.weaponLevel < 3) {
+        playerComp.weaponLevel++;
+        if (dispatch && pos) {
+          dispatch({
+            type: 'showFloatingText',
+            data: {
+              position: { x: pos.x, y: pos.y - 40 },
+              text: 'WEAPON UP!',
+              color: '#00FFFF',
+              size: 24,
+              duration: 1.5
+            }
+          });
+        }
+      } else {
+        if (dispatch && pos) {
+          dispatch({
+            type: 'showFloatingText',
+            data: {
+              position: { x: pos.x, y: pos.y - 40 },
+              text: 'MAX POWER!',
+              color: '#FFD700',
+              size: 24,
+              duration: 1.5
+            }
+          });
+        }
+      }
       break;
 
     case PowerUpType.BOMB:
@@ -172,8 +205,7 @@ const removePowerUpEffect = (playerEntity: GameEntity, powerUpType: PowerUpType)
       break;
 
     case PowerUpType.MULTI_SHOT:
-      // Remove multi-shot capability
-      // This is handled in the shooting system
+      // Multi-shot is permanent until death, no removal
       break;
 
     case PowerUpType.BOMB:

@@ -5,8 +5,11 @@
 import { Dimensions } from 'react-native';
 import { GameEntity, EntityType, EnemyType, Position, Velocity } from '../../types';
 import { clamp, lerp } from '../../utils/math';
+import { releaseBullet } from '../entities/Bullet';
+import { systemLog } from '../../utils/Debug';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+systemLog.log(`MovementSystemV2 Loaded. Screen Dimensions: ${SCREEN_WIDTH}x${SCREEN_HEIGHT}`);
 
 // System function that processes all entities with movement components
 export const MovementSystem = (
@@ -36,7 +39,7 @@ export const MovementSystem = (
         break;
 
       case EntityType.BULLET:
-        handleBulletMovement(entity, deltaTime);
+        handleBulletMovement(entity, deltaTime, entities);
         break;
 
       case EntityType.POWER_UP:
@@ -92,8 +95,13 @@ const handlePlayerMovement = (entity: GameEntity, deltaTime: number) => {
   }
 
   // Apply velocity to position
+  const oldY = position.y;
   position.x += velocity.x * deltaTime;
   position.y += velocity.y * deltaTime;
+
+  if (Math.abs(position.y - oldY) > 50) {
+    systemLog.warn(`Player Jump! Old: ${oldY}, New: ${position.y}, VelY: ${velocity.y}, Delta: ${deltaTime}`);
+  }
 
   // Apply max speed limit
   const speed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
@@ -143,6 +151,42 @@ const handleEnemyMovement = (entity: GameEntity, deltaTime: number, currentTime:
       }
       break;
 
+    case EnemyType.HOVER: {
+      // Hover behavior: Move down to Y=100 then stay and oscillate
+      const targetY = 100 + (enemyComp.phase || 0) * 50; // Staggered heights
+
+      let vx = 0;
+      let vy = 0;
+
+      if (position.y < targetY) {
+        // Move down to target
+        vx = 0;
+        vy = 150; // Fast entry
+      } else {
+        // Hover phase
+        enemyComp.patternTimer = (enemyComp.patternTimer || 0) + deltaTime;
+        const amplitude = 120;
+        const frequency = 1.6;
+
+        vx = Math.sin(enemyComp.patternTimer * frequency + (enemyComp.phase || 0)) * amplitude;
+        vy = Math.cos(enemyComp.patternTimer * frequency * 2 + (enemyComp.phase || 0)) * 20; // Slight bobbing
+
+        // Clamp Y to prevent drifting too far
+        if (Math.abs(position.y - targetY) > 20) {
+          vy += (targetY - position.y) * 2; // Return to target Y
+        }
+      }
+
+      // Update velocity for reference/rendering
+      velocity.x = vx;
+      velocity.y = vy;
+
+      // Apply calculated velocities
+      position.x += vx * deltaTime;
+      position.y += vy * deltaTime;
+      break;
+    }
+
     case EnemyType.BOSS:
       // Boss enemy moves slowly with complex patterns
       position.y += velocity.y * deltaTime * 0.3; // Very slow movement
@@ -159,7 +203,7 @@ const handleEnemyMovement = (entity: GameEntity, deltaTime: number, currentTime:
 };
 
 // Handle bullet movement
-const handleBulletMovement = (entity: GameEntity, deltaTime: number) => {
+const handleBulletMovement = (entity: GameEntity, deltaTime: number, entities: Record<string, GameEntity>) => {
   const position = entity.components.position;
   const velocity = entity.components.velocity;
   const bulletComp = entity.components.bullet;
@@ -176,9 +220,18 @@ const handleBulletMovement = (entity: GameEntity, deltaTime: number) => {
 
     // Check if bullet has expired
     if (bulletComp.age > bulletComp.lifetime) {
-      entity.active = false;
+      releaseBullet(entity);
+      delete entities[entity.id];
+      return;
     }
   }
+
+  // Check if off-screen (and release if so)
+  // Note: MovementSystem calls applyScreenBoundaries separately, but for bullets we might want to kill them here or there.
+  // The applyScreenBoundaries function handles ricochet. If NO ricochet and off screen, we should kill it.
+  // Let's rely on isBulletOffScreen check which we can implement or inline.
+  // Actually, let's keep it simple: Age check is primary here.
+  // Boundary check is done in applyScreenBoundaries or we can add it here.
 };
 
 // Handle power-up movement (floating animation)
@@ -207,6 +260,7 @@ const applyScreenBoundaries = (entity: GameEntity) => {
 
   if (!position) return;
 
+  const { width: CURRENT_SCREEN_WIDTH, height: CURRENT_SCREEN_HEIGHT } = Dimensions.get('window');
   const width = position.width || 40;
   const height = position.height || 40;
 
@@ -214,8 +268,8 @@ const applyScreenBoundaries = (entity: GameEntity) => {
   switch (entity.type) {
     case EntityType.PLAYER:
       // Player stays within screen bounds
-      position.x = clamp(position.x, width / 2, SCREEN_WIDTH - width / 2);
-      position.y = clamp(position.y, height / 2, SCREEN_HEIGHT - height / 2);
+      position.x = clamp(position.x, width / 2, CURRENT_SCREEN_WIDTH - width / 2);
+      position.y = clamp(position.y, height / 2, CURRENT_SCREEN_HEIGHT - height / 2);
       break;
 
     case EntityType.ENEMY:
@@ -233,6 +287,12 @@ const applyScreenBoundaries = (entity: GameEntity) => {
           bulletComp.currentRicochet = (bulletComp.currentRicochet || 0) + 1;
           position.x = clamp(position.x, 0, SCREEN_WIDTH);
         }
+      } else {
+        // If no ricochet and off screen significantly, kill it
+        // But we need 'entities' map to delete it.
+        // Pass entities to applyScreenBoundaries?
+        // For now, let's assume age kills them, or add a specific off-screen check in handleBulletMovement?
+        // Actually, bullets travel fast.
       }
       break;
 

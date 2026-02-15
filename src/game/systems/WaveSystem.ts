@@ -2,7 +2,7 @@
 // Handles enemy wave progression, difficulty scaling, and boss encounters
 
 import { GameEntity, EntityType, EnemyType } from '../../types';
-import { createEnemyWave, createSingleEnemyForWave } from '../entities/Enemy';
+import { createEnemyWave, createSingleEnemyForWave, createEnemyEntity } from '../entities/Enemy';
 import { createRandomPowerUpDrop } from '../entities/PowerUp';
 
 // Wave configuration
@@ -257,14 +257,28 @@ const handleWaveSpawning = (
   // Check if it's time to spawn next enemy
   const timeSinceLastSpawn = currentTime - waveState.lastSpawnTime;
   if (timeSinceLastSpawn >= waveConfig.spawnInterval) {
-    // Spawn enemy
-    const enemy = spawnEnemy(waveConfig, entities, dispatch);
-    if (enemy) {
-      entities[enemy.id] = enemy;
+    let newEnemies: GameEntity[] = [];
+
+    // Chance to spawn a flock in later waves
+    if (waveConfig.waveNumber > 1 && Math.random() < 0.3) {
+      newEnemies = spawnFlock(waveConfig, entities, dispatch);
+      console.log(`[WaveSystem] Spawning Hover Flock of ${newEnemies.length}`);
+    } else {
+      // Spawn single enemy
+      const enemy = spawnEnemy(waveConfig, entities, dispatch);
+      if (enemy) {
+        newEnemies = [enemy];
+      }
+    }
+
+    if (newEnemies.length > 0) {
+      newEnemies.forEach(enemy => {
+        entities[enemy.id] = enemy;
+      });
 
       // Update local state for this loop pass
-      waveState.enemiesToSpawn--; // Decrement enemiesToSpawn
-      waveState.enemiesRemaining++; // Increment enemiesRemaining as an enemy is spawned
+      waveState.enemiesToSpawn -= newEnemies.length; // Decrement enemiesToSpawn by count
+      waveState.enemiesRemaining += newEnemies.length; // Increment enemiesRemaining
       waveState.lastSpawnTime = currentTime;
 
       // Persist to entity component
@@ -275,19 +289,20 @@ const handleWaveSpawning = (
         waveManager.lastSpawnTime = waveState.lastSpawnTime;
       }
 
-      // Dispatch spawn event
+      // Dispatch spawn event (just one generic or per enemy? generic for now)
       dispatch({
         type: 'enemySpawn',
         data: {
-          enemyType: enemy.components.enemy?.type,
+          enemyType: newEnemies[0].components.enemy?.type, // Representative type
           waveNumber: waveConfig.waveNumber,
+          count: newEnemies.length
         },
       });
     }
   }
 };
 
-// Spawn an enemy
+// Spawn a single enemy
 const spawnEnemy = (
   waveConfig: WaveConfig,
   entities: Record<string, GameEntity>,
@@ -305,6 +320,46 @@ const spawnEnemy = (
 
   return enemy;
 };
+
+// Spawn a flock of enemies
+const spawnFlock = (
+  waveConfig: WaveConfig,
+  entities: Record<string, GameEntity>,
+  dispatch: (event: any) => void
+): GameEntity[] => {
+  const screenWidth = 400; // Default
+  const flockSize = 3 + Math.floor(Math.random() * 3); // 3 to 5 enemies
+  const flockType = EnemyType.HOVER; // Flocks are usually hover types
+  const flockEntities: GameEntity[] = [];
+
+  // Center of flock
+  const centerX = 50 + Math.random() * (screenWidth - 100);
+  const startY = -50;
+
+  for (let i = 0; i < flockSize; i++) {
+    // V-Formation
+    const offset = (i - Math.floor(flockSize / 2)) * 65;
+    const x = centerX + offset;
+    const y = startY - Math.abs(offset); // V shape
+
+    const enemy = createEnemyEntity({ x, y }, flockType);
+
+    // Apply difficulty
+    if (enemy.components.health) {
+      enemy.components.health.current *= waveConfig.difficultyMultiplier;
+      enemy.components.health.max *= waveConfig.difficultyMultiplier;
+    }
+
+    // Sync phases so they move together or slightly offset
+    if (enemy.components.enemy) {
+      enemy.components.enemy.phase = i * 0.5;
+    }
+
+    flockEntities.push(enemy);
+  }
+
+  return flockEntities;
+}
 
 // Spawn boss wave
 const spawnBossWave = (
@@ -399,6 +454,30 @@ const startNextWaveInternal = (
     waveManager.waveStartTime = Date.now();
     waveManager.lastSpawnTime = 0;
     waveManager.intermissionTimer = 0;
+  }
+
+  // Spawn a guaranteed power-up at the start of the wave
+  const screenWidth = 400; // Default or get from somewhere
+  const powerUpX = screenWidth / 2;
+  const powerUpY = 100; // Visible area
+
+  // import createRandomPowerUpDrop is already there? Yes line 6.
+  // actually createRandomPowerUpDrop creates a drop at a position.
+  const powerUp = createRandomPowerUpDrop({ x: powerUpX, y: powerUpY });
+
+  if (powerUp) {
+    // Ensure it's active and has a velocity to drift down?
+    // createRandomPowerUpDrop usually sets velocity.
+    // Let's make sure it's added to entities.
+    entities[powerUp.id] = powerUp;
+
+    dispatch({
+      type: 'powerUpDrop',
+      data: {
+        position: { x: powerUpX, y: powerUpY },
+        powerUpType: powerUp.components.powerUp?.type,
+      },
+    });
   }
 
   // Dispatch wave start event

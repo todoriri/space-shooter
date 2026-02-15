@@ -1,8 +1,8 @@
 // Jest setup file for React Native testing
-import '@testing-library/react-native/extend-expect';
+// Note: @testing-library/react-native v12+ has built-in matchers, no separate import needed
 
-// Mock React Native modules
-jest.mock('react-native/Libraries/Animated/NativeAnimatedHelper');
+// Mock React Native Animated helper (may not exist in all RN versions)
+jest.mock('react-native/Libraries/Animated/NativeAnimatedHelper', () => ({}), { virtual: true });
 
 // Mock react-native-sound
 jest.mock('react-native-sound', () => {

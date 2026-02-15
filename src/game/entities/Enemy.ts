@@ -1,4 +1,44 @@
 import { GameEntity, Position, Velocity, Health, EnemyComponent, EntityType, EnemyType } from '../../types';
+import { EntityPool } from '../../utils/EntityPool';
+import { POOL_CONFIG } from '../../constants';
+
+/** Parameters for enemy pool reset function */
+interface EnemyResetParams {
+  enemyType: EnemyType;
+}
+
+// Enemy Pool with typed reset parameters
+const enemyPool = new EntityPool<GameEntity, EnemyResetParams>(
+  () => ({
+    id: `enemy_${Date.now()}_${Math.random()}`,
+    type: EntityType.ENEMY,
+    active: true,
+    tags: ['enemy', 'destructible'],
+    components: {}
+  }),
+  (entity, params) => {
+    entity.active = true;
+    entity.tags = ['enemy', 'destructible'];
+    // Generate ID with enemy type - only set if params provided
+    if (params?.enemyType) {
+      entity.id = `enemy_${params.enemyType}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+    } else {
+      entity.id = `enemy_recycled_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+    }
+    return entity;
+  },
+  POOL_CONFIG.ENEMY_INITIAL_SIZE,
+  POOL_CONFIG.ENEMY_MAX_SIZE
+);
+
+/**
+ * Release an enemy back to the pool
+ * @param enemy - Enemy entity to release
+ */
+export const releaseEnemy = (enemy: GameEntity): void => {
+  enemy.active = false;
+  enemyPool.release(enemy);
+};
 
 /**
  * Creates a basic enemy entity
@@ -10,15 +50,9 @@ export const createEnemyEntity = (
   position: Position,
   enemyType: EnemyType = EnemyType.BASIC
 ): GameEntity => {
-  const enemyId = `enemy_${enemyType}_${Date.now()}`;
-
-  // Base enemy configuration
-  const baseConfig = {
-    id: enemyId,
-    type: EntityType.ENEMY,
-    active: true,
-    tags: ['enemy', 'destructible'],
-  };
+  // Acquire from pool with enemy type for proper ID generation
+  const enemy = enemyPool.acquire({ enemyType });
+  enemy.type = EntityType.ENEMY; // Ensure type is set correctly
 
   // Enemy type specific configurations
   const enemyConfigs = {
@@ -166,6 +200,53 @@ export const createEnemyEntity = (
         },
       },
     },
+    [EnemyType.HOVER]: {
+      components: {
+        position: {
+          ...position,
+          width: 35,
+          height: 35,
+          rotation: 180,
+        },
+        velocity: {
+          x: 0,
+          y: 60,
+          maxSpeed: 100,
+          acceleration: 150,
+          friction: 100,
+        },
+        health: {
+          current: 60, // Tougher than basic
+          max: 60,
+          invulnerable: false,
+          invulnerableTimer: 0,
+        },
+        enemy: {
+          type: EnemyType.HOVER,
+          scoreValue: 300,
+          behavior: 'hover', // Logic in MovementSystem
+          fireRate: 1.0,
+          lastShotTime: 0,
+          movePattern: 'hover',
+          patternTimer: 0,
+          phase: Math.random() * 2, // Randomize phase for variety
+        },
+        collider: {
+          type: 'circle' as const,
+          radius: 17,
+          isTrigger: false,
+          layer: 'enemy',
+          mask: ['player', 'player_bullet'],
+        },
+        renderable: {
+          visible: true,
+          zIndex: 5,
+          sprite: 'enemy_diving', // Reuse diving sprite for now, or use differnt color
+          color: '#29B6F6', // Light Blue
+          alpha: 1,
+        },
+      },
+    },
     [EnemyType.BOSS]: {
       components: {
         position: {
@@ -219,11 +300,9 @@ export const createEnemyEntity = (
   };
 
   const config = enemyConfigs[enemyType];
+  enemy.components = config.components;
 
-  return {
-    ...baseConfig,
-    components: config.components,
-  };
+  return enemy;
 };
 
 /**
@@ -465,11 +544,13 @@ export const createSingleEnemyForWave = (
     // Early waves: mix of basic and diving enemies
     enemyType = Math.random() > 0.7 ? EnemyType.DIVING : EnemyType.BASIC;
   } else if (waveNumber <= 6) {
-    // Mid waves: add shooting enemies
+    // Mid waves: add shooting and hover enemies
     const rand = Math.random();
     if (rand > 0.8) {
       enemyType = EnemyType.SHOOTING;
-    } else if (rand > 0.5) {
+    } else if (rand > 0.6) {
+      enemyType = EnemyType.HOVER;
+    } else if (rand > 0.4) {
       enemyType = EnemyType.DIVING;
     } else {
       enemyType = EnemyType.BASIC;
@@ -483,14 +564,16 @@ export const createSingleEnemyForWave = (
   } else {
     // Late waves: more variety
     const rand = Math.random();
-    if (rand > 0.9) {
+    if (rand > 0.85) {
       enemyType = EnemyType.SHOOTING;
     } else if (rand > 0.7) {
+      enemyType = EnemyType.HOVER;
+    } else if (rand > 0.5) {
       enemyType = EnemyType.DIVING;
-    } else if (rand > 0.4) {
+    } else if (rand > 0.3) {
       enemyType = EnemyType.BASIC;
     } else {
-      enemyType = EnemyType.SHOOTING;
+      enemyType = EnemyType.HOVER;
     }
   }
 

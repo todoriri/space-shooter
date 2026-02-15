@@ -33,15 +33,25 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
   const bombButtonScale = useRef(new Animated.Value(1)).current;
   const pauseButtonScale = useRef(new Animated.Value(1)).current;
 
+  // Keep track of paused state in a ref for PanResponder
+  const isPausedRef = useRef(isPaused);
+
+  // Update ref when prop changes
+  React.useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
+
   // Touch tracking for 1:1 movement
   const lastTouchRef = useRef({ x: 0, y: 0 });
 
   // Full screen pan responder for movement and auto-fire
   const screenPanResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => !isPausedRef.current,
+      onMoveShouldSetPanResponder: () => !isPausedRef.current,
       onPanResponderGrant: (evt) => {
+        if (isPausedRef.current) return;
+
         const { locationX, locationY } = evt.nativeEvent;
         lastTouchRef.current = { x: locationX, y: locationY };
 
@@ -49,6 +59,8 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
         if (onShoot) onShoot(true);
       },
       onPanResponderMove: (evt) => {
+        if (isPausedRef.current) return;
+
         const { locationX, locationY } = evt.nativeEvent;
 
         // Calculate delta for 1:1 movement

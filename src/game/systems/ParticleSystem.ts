@@ -2,6 +2,8 @@
 // Handles visual effects like explosions, engine trails, and hit effects
 
 import { GameEntity, EntityType, Position, Renderable } from '../../types';
+import { EntityPool } from '../../utils/EntityPool';
+
 
 // Particle types
 export enum ParticleType {
@@ -34,6 +36,40 @@ export interface ParticleEntity extends GameEntity {
   initialColor?: string;
 }
 
+// Particle Pool
+const particlePool = new EntityPool<ParticleEntity>(
+  () => ({
+    id: `particle_${Date.now()}_${Math.random()}`,
+    type: 'particle' as EntityType,
+    active: true,
+    tags: ['particle'],
+    particleType: ParticleType.EXPLOSION, // Default
+    age: 0,
+    maxAge: 1,
+    components: {}
+  }),
+  (entity) => {
+    entity.active = true;
+    entity.tags = ['particle'];
+    entity.age = 0;
+    // Clear dynamic properties if they exist
+    const e = entity as any;
+    if (e.fadeOut) delete e.fadeOut;
+    if (e.gravity) delete e.gravity;
+    return entity;
+  },
+  100, // Initial size
+  500 // Max size
+);
+
+// Helper to release particle
+const releaseParticle = (particle: ParticleEntity) => {
+  particle.active = false;
+  particlePool.release(particle);
+};
+
+
+
 // System function that manages particles
 export const ParticleSystem = (
   entities: Record<string, GameEntity>,
@@ -56,9 +92,14 @@ export const ParticleSystem = (
   Object.keys(entities).forEach(id => {
     const entity = entities[id];
 
-    // Check if entity is a particle
+    // Check if entity exists and is a particle
+    if (!entity) return;
+
     if (entity.type === EntityType.PARTICLE || (entity as any).particleType) {
       updateParticle(entity as any, deltaTime, entities, id);
+    } else if (entity.type === EntityType.FLOATING_TEXT) {
+      // Update floating text logic here or delegate
+      updateFloatingText(entity, deltaTime, entities, id);
     }
   });
 
@@ -77,8 +118,8 @@ const updateParticle = (
 
   // Remove if too old
   if (particle.age >= particle.maxAge) {
-    // Determine if we should just remove it or reuse it (pooling)
-    // For now, just remove
+    // Release to pool and remove from entities
+    releaseParticle(particle);
     delete entities[id];
     return;
   }
@@ -107,6 +148,36 @@ const updateParticle = (
 
   // Update appearance
   updateParticleAppearance(particle, deltaTime);
+};
+
+// Update floating text
+const updateFloatingText = (
+  entity: GameEntity,
+  deltaTime: number,
+  entities: Record<string, GameEntity>,
+  id: string
+) => {
+  const ft = entity.components.floatingText;
+  const pos = entity.components.position;
+  const vel = entity.components.velocity;
+  const render = entity.components.renderable;
+
+  if (!ft || !pos || !vel || !render) return;
+
+  // Update age
+  ft.age += deltaTime;
+  if (ft.age >= ft.lifetime) {
+    delete entities[id];
+    return;
+  }
+
+  // Float up
+  pos.y += vel.y * deltaTime;
+
+  // Fade out
+  const ageRatio = ft.age / ft.lifetime;
+  ft.opacity = 1 - Math.pow(ageRatio, 3); // Cubic ease out
+  render.alpha = ft.opacity;
 };
 
 // Update particle appearance (size, color, opacity)
@@ -198,38 +269,37 @@ export const createExplosionEffect = (
     const speed = 50 + Math.random() * 150;
     const lifetime = 0.5 + Math.random() * 1.0;
 
-    const particle: ParticleEntity = {
-      id: `explosion_particle_${Date.now()}_${i}`,
-      type: 'particle' as EntityType,
-      active: true,
-      tags: ['particle', 'explosion'],
-      particleType: ParticleType.EXPLOSION,
-      age: 0,
-      maxAge: lifetime,
-      initialSize: 3 + Math.random() * 7,
-      initialColor: '#FFD700',
-      components: {
-        position: {
-          x: position.x + (Math.random() - 0.5) * size * 0.5,
-          y: position.y + (Math.random() - 0.5) * size * 0.5,
-          width: 3 + Math.random() * 7,
-          height: 3 + Math.random() * 7,
-        },
-        velocity: {
-          x: Math.cos(angle) * speed,
-          y: Math.sin(angle) * speed,
-        },
-        acceleration: {
-          x: 0,
-          y: 98, // Gravity
-        },
-        renderable: {
-          visible: true,
-          zIndex: 10,
-          color: '#FFD700',
-          alpha: 1,
-          glowEffect: true,
-        },
+    const particle = particlePool.acquire();
+    particle.id = `explosion_particle_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 5)}`;
+    particle.type = 'particle' as EntityType;
+    particle.active = true;
+    particle.tags = ['particle', 'explosion'];
+    particle.particleType = ParticleType.EXPLOSION;
+    particle.maxAge = lifetime;
+    particle.initialSize = 3 + Math.random() * 7;
+    particle.initialColor = '#FFD700';
+
+    particle.components = {
+      position: {
+        x: position.x + (Math.random() - 0.5) * size * 0.5,
+        y: position.y + (Math.random() - 0.5) * size * 0.5,
+        width: 3 + Math.random() * 7,
+        height: 3 + Math.random() * 7,
+      },
+      velocity: {
+        x: Math.cos(angle) * speed,
+        y: Math.sin(angle) * speed,
+      },
+      acceleration: {
+        x: 0,
+        y: 98, // Gravity
+      },
+      renderable: {
+        visible: true,
+        zIndex: 10,
+        color: '#FFD700',
+        alpha: 1,
+        glowEffect: true,
       },
     };
 
@@ -250,34 +320,35 @@ export const createBombEffect = (
   screenSize: { width: number, height: number }
 ): ParticleEntity[] => {
   // 1. The main blast wave
-  const blastParams = {
-    id: `bomb_blast_${Date.now()}`,
-    type: 'particle' as EntityType,
-    active: true,
-    tags: ['particle', 'bomb_blast'],
-    particleType: ParticleType.BOMB_EXPLOSION,
-    age: 0,
-    maxAge: duration / 1000, // Convert to seconds
-    initialSize: screenSize.width * 0.8, // Start large
-    initialColor: '#FFFFFF',
-    components: {
-      position: {
-        x: screenSize.width / 2, // Center of screen
-        y: screenSize.height / 2,
-        width: screenSize.width * 0.8,
-        height: screenSize.width * 0.8, // Circular/Square aspect
-      },
-      renderable: {
-        visible: true,
-        zIndex: 20, // Top layer
-        color: '#FFFFFF',
-        alpha: 1,
-        glowEffect: true,
-        pulseEffect: true,
-        pulseSpeed: 10,
-      },
+  const particle = particlePool.acquire();
+  particle.id = `bomb_blast_${Date.now()}`;
+  particle.type = 'particle' as EntityType;
+  particle.active = true;
+  particle.tags = ['particle', 'bomb_blast'];
+  particle.particleType = ParticleType.BOMB_EXPLOSION;
+  particle.maxAge = duration / 1000;
+  particle.initialSize = screenSize.width * 0.8;
+  particle.initialColor = '#FFFFFF';
+
+  particle.components = {
+    position: {
+      x: screenSize.width / 2, // Center of screen
+      y: screenSize.height / 2,
+      width: screenSize.width * 0.8,
+      height: screenSize.width * 0.8, // Circular/Square aspect
+    },
+    renderable: {
+      visible: true,
+      zIndex: 20, // Top layer
+      color: '#FFFFFF',
+      alpha: 1,
+      glowEffect: true,
+      pulseEffect: true,
+      pulseSpeed: 10,
     },
   };
+
+  const blastParams = particle;
 
   // 2. Secondary sparkles/debris (optional, keeping it simple for now to ensure performance)
   // We can add more particles here if needed, but one massive scaling sprite might be enough for the "Nova" effect.
@@ -293,37 +364,36 @@ export const createEngineTrailEffect = (
   const trailLength = 20;
   const trailOffset = 15;
 
-  return {
-    id: `engine_trail_${Date.now()}`,
-    type: 'particle' as EntityType,
-    active: true,
-    tags: ['particle', 'engine_trail'],
-    particleType: ParticleType.ENGINE_TRAIL,
-    age: 0,
-    maxAge: 0.3,
-    initialSize: 8,
-    initialColor: '#4FC3F7',
-    components: {
-      position: {
-        x: position.x - direction.x * trailOffset,
-        y: position.y - direction.y * trailOffset,
-        width: 8,
-        height: trailLength,
-        rotation: Math.atan2(direction.y, direction.x) * (180 / Math.PI) - 90,
-      },
-      velocity: {
-        x: -direction.x * 50,
-        y: -direction.y * 50,
-      },
-      renderable: {
-        visible: true,
-        zIndex: 1,
-        color: '#4FC3F7',
-        alpha: 0.7,
-        glowEffect: true,
-      },
+  const particle = particlePool.acquire();
+  particle.id = `engine_trail_${Date.now()}`;
+  particle.active = true;
+  particle.tags = ['particle', 'engine_trail'];
+  particle.particleType = ParticleType.ENGINE_TRAIL;
+  particle.maxAge = 0.3;
+  particle.initialSize = 8;
+  particle.initialColor = '#4FC3F7';
+
+  particle.components = {
+    position: {
+      x: position.x - direction.x * trailOffset,
+      y: position.y - direction.y * trailOffset,
+      width: 8,
+      height: trailLength,
+      rotation: Math.atan2(direction.y, direction.x) * (180 / Math.PI) - 90,
+    },
+    velocity: {
+      x: -direction.x * 50,
+      y: -direction.y * 50,
+    },
+    renderable: {
+      visible: true,
+      zIndex: 1,
+      color: '#4FC3F7',
+      alpha: 0.7,
+      glowEffect: true,
     },
   };
+  return particle;
 };
 
 // Create hit effect
@@ -331,34 +401,33 @@ export const createHitEffect = (
   position: Position,
   color: string = '#FFFFFF'
 ): ParticleEntity => {
-  return {
-    id: `hit_effect_${Date.now()}`,
-    type: 'particle' as EntityType,
-    active: true,
-    tags: ['particle', 'hit_effect'],
-    particleType: ParticleType.HIT_EFFECT,
-    age: 0,
-    maxAge: 0.2,
-    initialSize: 15,
-    initialColor: color,
-    components: {
-      position: {
-        x: position.x,
-        y: position.y,
-        width: 15,
-        height: 15,
-      },
-      renderable: {
-        visible: true,
-        zIndex: 15,
-        color: color,
-        alpha: 0.8,
-        glowEffect: true,
-        pulseEffect: true,
-        pulseSpeed: 20,
-      },
+  const particle = particlePool.acquire();
+  particle.id = `hit_effect_${Date.now()}`;
+  particle.active = true;
+  particle.tags = ['particle', 'hit_effect'];
+  particle.particleType = ParticleType.HIT_EFFECT;
+  particle.maxAge = 0.2;
+  particle.initialSize = 15;
+  particle.initialColor = color;
+
+  particle.components = {
+    position: {
+      x: position.x,
+      y: position.y,
+      width: 15,
+      height: 15,
+    },
+    renderable: {
+      visible: true,
+      zIndex: 15,
+      color: color,
+      alpha: 0.8,
+      glowEffect: true,
+      pulseEffect: true,
+      pulseSpeed: 20,
     },
   };
+  return particle;
 };
 
 // Create power-up glow effect
@@ -375,34 +444,33 @@ export const createPowerUpGlowEffect = (
     score: '#9370DB',
   };
 
-  return {
-    id: `powerup_glow_${Date.now()}`,
-    type: 'particle' as EntityType,
-    active: true,
-    tags: ['particle', 'powerup_glow'],
-    particleType: ParticleType.POWER_UP_GLOW,
-    age: 0,
-    maxAge: 1.5,
-    initialSize: 30,
-    initialColor: colors[powerUpType] || '#FFFFFF',
-    components: {
-      position: {
-        x: position.x,
-        y: position.y,
-        width: 30,
-        height: 30,
-      },
-      renderable: {
-        visible: true,
-        zIndex: 8,
-        color: colors[powerUpType] || '#FFFFFF',
-        alpha: 0.6,
-        glowEffect: true,
-        pulseEffect: true,
-        pulseSpeed: 2,
-      },
+  const particle = particlePool.acquire();
+  particle.id = `powerup_glow_${Date.now()}`;
+  particle.active = true;
+  particle.tags = ['particle', 'powerup_glow'];
+  particle.particleType = ParticleType.POWER_UP_GLOW;
+  particle.maxAge = 1.5;
+  particle.initialSize = 30;
+  particle.initialColor = colors[powerUpType] || '#FFFFFF';
+
+  particle.components = {
+    position: {
+      x: position.x,
+      y: position.y,
+      width: 30,
+      height: 30,
+    },
+    renderable: {
+      visible: true,
+      zIndex: 8,
+      color: colors[powerUpType] || '#FFFFFF',
+      alpha: 0.6,
+      glowEffect: true,
+      pulseEffect: true,
+      pulseSpeed: 2,
     },
   };
+  return particle;
 };
 
 // Create bullet trail effect
@@ -416,33 +484,32 @@ export const createBulletTrailEffect = (
   const length = Math.sqrt(dx * dx + dy * dy);
   const angle = Math.atan2(dy, dx) * (180 / Math.PI);
 
-  return {
-    id: `bullet_trail_${Date.now()}`,
-    type: 'particle' as EntityType,
-    active: true,
-    tags: ['particle', 'bullet_trail'],
-    particleType: ParticleType.BULLET_TRAIL,
-    age: 0,
-    maxAge: 0.1,
-    initialSize: 3,
-    initialColor: color,
-    components: {
-      position: {
-        x: (startPosition.x + endPosition.x) / 2,
-        y: (startPosition.y + endPosition.y) / 2,
-        width: length,
-        height: 3,
-        rotation: angle,
-      },
-      renderable: {
-        visible: true,
-        zIndex: 5,
-        color: color,
-        alpha: 0.5,
-        glowEffect: true,
-      },
+  const particle = particlePool.acquire();
+  particle.id = `bullet_trail_${Date.now()}`;
+  particle.active = true;
+  particle.tags = ['particle', 'bullet_trail'];
+  particle.particleType = ParticleType.BULLET_TRAIL;
+  particle.maxAge = 0.1;
+  particle.initialSize = 3;
+  particle.initialColor = color;
+
+  particle.components = {
+    position: {
+      x: (startPosition.x + endPosition.x) / 2,
+      y: (startPosition.y + endPosition.y) / 2,
+      width: length,
+      height: 3,
+      rotation: angle,
+    },
+    renderable: {
+      visible: true,
+      zIndex: 5,
+      color: color,
+      alpha: 0.5,
+      glowEffect: true,
     },
   };
+  return particle;
 };
 
 // Create shield effect
@@ -450,34 +517,33 @@ export const createShieldEffect = (
   position: Position,
   radius: number = 25
 ): ParticleEntity => {
-  return {
-    id: `shield_effect_${Date.now()}`,
-    type: 'particle' as EntityType,
-    active: true,
-    tags: ['particle', 'shield_effect'],
-    particleType: ParticleType.SHIELD_EFFECT,
-    age: 0,
-    maxAge: 10, // Match shield duration
-    initialSize: radius * 2,
-    initialColor: '#00FFFF',
-    components: {
-      position: {
-        x: position.x,
-        y: position.y,
-        width: radius * 2,
-        height: radius * 2,
-      },
-      renderable: {
-        visible: true,
-        zIndex: 3,
-        color: '#00FFFF',
-        alpha: 0.3,
-        glowEffect: true,
-        pulseEffect: true,
-        pulseSpeed: 1,
-      },
+  const particle = particlePool.acquire();
+  particle.id = `shield_effect_${Date.now()}`;
+  particle.active = true;
+  particle.tags = ['particle', 'shield_effect'];
+  particle.particleType = ParticleType.SHIELD_EFFECT;
+  particle.maxAge = 10;
+  particle.initialSize = radius * 2;
+  particle.initialColor = '#00FFFF';
+
+  particle.components = {
+    position: {
+      x: position.x,
+      y: position.y,
+      width: radius * 2,
+      height: radius * 2,
+    },
+    renderable: {
+      visible: true,
+      zIndex: 3,
+      color: '#00FFFF',
+      alpha: 0.3,
+      glowEffect: true,
+      pulseEffect: true,
+      pulseSpeed: 1,
     },
   };
+  return particle;
 };
 
 // Add particles to entities
@@ -492,6 +558,50 @@ export const addParticlesToEntities = (
   });
 
   return updatedEntities;
+};
+
+// Create floating text effect
+export const createFloatingText = (
+  position: Position,
+  text: string,
+  color: string = '#FFFFFF',
+  size: number = 20,
+  duration: number = 1.0
+): GameEntity => {
+  const entityId = `floating_text_${Date.now()}_${Math.random()}`;
+  return {
+    id: entityId,
+    type: EntityType.FLOATING_TEXT,
+    active: true,
+    tags: ['floating_text'],
+    components: {
+      position: {
+        x: position.x,
+        y: position.y,
+        width: size * text.length * 0.6,
+        height: size,
+        rotation: 0,
+      },
+      velocity: {
+        x: 0,
+        y: -50, // Float up
+      },
+      renderable: {
+        visible: true,
+        zIndex: 20,
+        color: color,
+        alpha: 1,
+      },
+      floatingText: {
+        text: text,
+        color: color,
+        size: size,
+        lifetime: duration,
+        age: 0,
+        opacity: 1,
+      },
+    },
+  };
 };
 
 // Handle particle events from game events

@@ -43,9 +43,11 @@ export interface PlayerComponent {
   shieldEndTime?: number;
   rapidFireActive?: boolean;
   rapidFireEndTime?: number;
-  multiShotActive?: boolean;
-  multiShotEndTime?: number;
+  weaponLevel: number; // 1: Single, 2: Double, 3: Spread
+
   touchPosition?: Position;
+  targetPosition?: Position; // For smoothing
+  lastTrailTime?: number;
   lastBombTime?: number;
   bombCooldown?: number;
 }
@@ -105,6 +107,15 @@ export interface WaveManagerComponent {
   intermissionTimer?: number;
 }
 
+export interface FloatingTextComponent {
+  text: string;
+  color: string;
+  size: number;
+  lifetime: number;
+  age: number;
+  opacity: number;
+}
+
 export interface Collider {
   type: 'circle' | 'rectangle';
   radius?: number;
@@ -146,6 +157,7 @@ export enum EntityType {
   BACKGROUND = 'background',
   PARTICLE = 'particle',
   SYSTEM = 'system',
+  FLOATING_TEXT = 'floatingText',
 }
 
 // Enemy Types
@@ -154,6 +166,7 @@ export enum EnemyType {
   DIVING = 'diving',
   SHOOTING = 'shooting',
   BOSS = 'boss',
+  HOVER = 'hover',
 }
 
 // Bullet Types
@@ -191,6 +204,7 @@ export interface GameEntity {
     collider?: Collider;
     renderable?: Renderable;
     waveManager?: WaveManagerComponent;
+    floatingText?: FloatingTextComponent;
   };
 }
 

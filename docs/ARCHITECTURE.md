@@ -321,6 +321,92 @@ App (NavigationContainer)
 
 ---
 
-*Last Updated: 2026-02-13*
-*Architecture Version: 4.0*
-*Status: Foundation, Core Gameplay & Polish Complete, Optimization Phase Ready*
+## Known Issues & Technical Debt
+
+### Architectural Decisions Under Review
+
+#### 1. Direct Entity Mutation Pattern
+**Status:** Under Review
+**Impact:** Performance vs. React reconciliation safety
+
+The current implementation directly mutates entity components in game systems for performance:
+```typescript
+// MovementSystemV2.ts, CollisionSystemV2.ts
+position.x += velocity.x * deltaTime;  // Direct mutation
+```
+
+**Alternatives Considered:**
+- Immutable updates (safer but creates GC pressure)
+- Immer library (adds dependency)
+- Keep current approach with documentation
+
+**Recommendation:** Keep current approach with clear documentation of the pattern.
+
+#### 2. State Management Fragmentation
+**Status:** Needs Consolidation
+**Impact:** Debugging difficulty
+
+Game state is currently split across:
+- `useState` for entities
+- `useRef` for input state and game over flag
+- Props from parent for score/lives/wave
+
+**Recommendation:** Create unified `GameProvider` context.
+
+### Code Quality Issues
+
+| Issue | Location | Priority | Status |
+|-------|----------|----------|--------|
+| Duplicate switch case | GameEngine.tsx:309 | Critical | ✅ Fixed |
+| Power-up collision bug | CollisionSystemV2.ts:109 | Critical | ✅ Fixed |
+| Console.log in production | MovementSystemV2.ts:11 | High | ✅ Fixed |
+| Unused functions | GameEngine.tsx:353-431 | Medium | ✅ Removed |
+| Magic numbers | Multiple files | Medium | ✅ Extracted to constants |
+| Entity pool ID generation | Enemy.ts:43-45 | Medium | ✅ Fixed |
+| No unit tests | Game logic | Medium | ✅ 13 tests passing |
+
+### Files Addressed (Sprint 1 & 2 Complete)
+
+```
+src/game/GameEngine.tsx
+├── ✅ Fixed: Duplicate 'gameOver' case removed
+├── ✅ Removed: handleSpawning() dead code
+└── ✅ Removed: updatePowerUpDurations() placeholder
+
+src/game/systems/MovementSystemV2.ts
+├── ✅ Fixed: Console.log now uses Debug utility
+└── 📝 Documented: Direct entity mutation pattern (acceptable for performance)
+
+src/game/systems/CollisionSystemV2.ts
+└── ✅ Fixed: Power-up collision detection (sorted string case)
+
+src/game/entities/Enemy.ts
+└── ✅ Fixed: Single ID generation with typed pool params
+
+__tests__/unit/game/foundation.test.ts
+└── ✅ Updated: Tests now pass with V2 systems
+```
+
+### New Files Created
+
+```
+src/constants/GameConfig.ts    - Centralized game configuration
+src/constants/index.ts         - Module exports
+src/utils/Debug.ts             - Conditional logging utility
+docs/IMPROVEMENT_PLAN.md       - Detailed improvement tracking
+```
+
+### Improvement Roadmap
+
+See [IMPROVEMENT_PLAN.md](./IMPROVEMENT_PLAN.md) for detailed implementation steps.
+
+- **Sprint 1:** ✅ Critical bug fixes - Complete
+- **Sprint 2:** ✅ Code quality & tests - Complete
+- **Sprint 3:** 🔜 Architecture consolidation
+- **Sprint 4:** 🔜 Polish & documentation
+
+---
+
+*Last Updated: 2026-02-14*
+*Architecture Version: 4.3*
+*Status: Sprint 1 & 2 Complete, All Tests Passing*

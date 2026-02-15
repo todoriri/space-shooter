@@ -4,6 +4,9 @@
 
 import { GameEntity, EntityType, EnemyType, BulletType, PowerUpType } from '../../types';
 import { checkAABBCollision, getBoundingBox, SpatialGrid } from '../../utils/collision';
+import { releaseBullet } from '../entities/Bullet';
+import { releaseEnemy } from '../entities/Enemy';
+import { createRandomPowerUpDrop } from '../entities/PowerUp';
 
 // Collision types
 export type CollisionType =
@@ -104,7 +107,7 @@ const getCollisionType = (type1: EntityType, type2: EntityType): CollisionType |
   switch (types) {
     case 'enemy-player':
       return 'player-enemy';
-    case 'powerUp-player':
+    case 'player-powerUp': // Fixed: sorted order is 'player' then 'powerUp' alphabetically
       return 'player-powerUp';
     case 'bullet-enemy':
       return 'bullet-enemy';
@@ -128,25 +131,45 @@ const handleCollision = (
   const entity1Obj = entities[entity1];
   const entity2Obj = entities[entity2];
 
+  if (!entity1Obj || !entity2Obj) return;
+
+
+
   switch (type) {
     case 'player-enemy':
-      handlePlayerEnemyCollision(entity1Obj, entity2Obj, position, currentTime, dispatch);
+      if (entity1Obj.type === EntityType.PLAYER) {
+        handlePlayerEnemyCollision(entity1Obj, entity2Obj, position, currentTime, entities, dispatch);
+      } else {
+        handlePlayerEnemyCollision(entity2Obj, entity1Obj, position, currentTime, entities, dispatch);
+      }
       break;
 
     case 'player-powerUp':
-      handlePlayerPowerUpCollision(entity1Obj, entity2Obj, position, dispatch);
+      if (entity1Obj.type === EntityType.PLAYER) {
+        handlePlayerPowerUpCollision(entity1Obj, entity2Obj, position, dispatch);
+      } else {
+        handlePlayerPowerUpCollision(entity2Obj, entity1Obj, position, dispatch);
+      }
       break;
 
     case 'bullet-enemy':
-      handleBulletEnemyCollision(entity1Obj, entity2Obj, position, entities, dispatch);
+      if (entity1Obj.type === EntityType.BULLET) {
+        handleBulletEnemyCollision(entity1Obj, entity2Obj, position, entities, dispatch);
+      } else {
+        handleBulletEnemyCollision(entity2Obj, entity1Obj, position, entities, dispatch);
+      }
       break;
 
     case 'bullet-player':
-      handleBulletPlayerCollision(entity1Obj, entity2Obj, position, currentTime, dispatch);
+      if (entity1Obj.type === EntityType.BULLET) {
+        handleBulletPlayerCollision(entity1Obj, entity2Obj, position, currentTime, entities, dispatch);
+      } else {
+        handleBulletPlayerCollision(entity2Obj, entity1Obj, position, currentTime, entities, dispatch);
+      }
       break;
 
     case 'enemy-enemy':
-      // Enemies bounce off each other
+      // Order doesn't matter for enemy-enemy
       handleEnemyEnemyCollision(entity1Obj, entity2Obj);
       break;
   }
@@ -158,6 +181,7 @@ const handlePlayerEnemyCollision = (
   enemyEntity: GameEntity,
   position: { x: number; y: number },
   currentTime: number,
+  entities: Record<string, GameEntity>,
   dispatch: (event: any) => void
 ) => {
   const playerHealth = playerEntity.components.health;
@@ -213,7 +237,8 @@ const handlePlayerEnemyCollision = (
 
   // If enemy health reaches 0
   if (enemyHealth && enemyHealth.current <= 0) {
-    enemyEntity.active = false;
+    releaseEnemy(enemyEntity);
+    delete entities[enemyEntity.id];
 
     // Add score from enemy destruction
     if (playerComp && enemyComp) {
@@ -228,6 +253,19 @@ const handlePlayerEnemyCollision = (
         points: enemyComp?.scoreValue || 100,
       },
     });
+
+    // Chance to drop power-up
+    const powerUp = createRandomPowerUpDrop(position, 0.15); // 15% chance
+    if (powerUp) {
+      entities[powerUp.id] = powerUp;
+      dispatch({
+        type: 'powerUpDrop',
+        data: {
+          position,
+          powerUpType: powerUp.components.powerUp?.type,
+        },
+      });
+    }
   }
 };
 
@@ -288,11 +326,13 @@ const handleBulletEnemyCollision = (
   if (bulletComp.pierce > 1) {
     bulletComp.currentPierce = (bulletComp.currentPierce || bulletComp.pierce) - 1;
     if (bulletComp.currentPierce <= 0) {
-      bulletEntity.active = false;
+      releaseBullet(bulletEntity);
+      delete entities[bulletEntity.id];
     }
   } else {
     // Default behavior for non-piercing bullets
-    bulletEntity.active = false;
+    releaseBullet(bulletEntity);
+    delete entities[bulletEntity.id];
   }
 
   // Dispatch hit event
@@ -308,7 +348,8 @@ const handleBulletEnemyCollision = (
 
   // If enemy is destroyed
   if (enemyHealth && enemyHealth.current <= 0) {
-    enemyEntity.active = false;
+    releaseEnemy(enemyEntity);
+    delete entities[enemyEntity.id];
 
     // Add score to player
     if (playerEntity?.components.player && enemyComp) {
@@ -323,6 +364,19 @@ const handleBulletEnemyCollision = (
         points: enemyComp?.scoreValue || 100,
       },
     });
+
+    // Chance to drop power-up
+    const powerUp = createRandomPowerUpDrop(position, 0.15); // 15% chance
+    if (powerUp) {
+      entities[powerUp.id] = powerUp;
+      dispatch({
+        type: 'powerUpDrop',
+        data: {
+          position,
+          powerUpType: powerUp.components.powerUp?.type,
+        },
+      });
+    }
   }
 };
 
@@ -332,6 +386,7 @@ const handleBulletPlayerCollision = (
   playerEntity: GameEntity,
   position: { x: number; y: number },
   currentTime: number,
+  entities: Record<string, GameEntity>,
   dispatch: (event: any) => void
 ) => {
   const bulletComp = bulletEntity.components.bullet;
@@ -352,7 +407,8 @@ const handleBulletPlayerCollision = (
   playerHealth.invulnerableTimer = currentTime + 1000;
 
   // Deactivate bullet
-  bulletEntity.active = false;
+  releaseBullet(bulletEntity);
+  delete entities[bulletEntity.id];
 
   // Dispatch events
   dispatch({

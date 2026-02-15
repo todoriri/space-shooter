@@ -80,6 +80,7 @@ class AssetManager {
       { key: 'powerup_multi', type: 'image', uri: require('../../assets/images/game/powerup_multi.png') },
       { key: 'powerup_bomb', type: 'image', uri: require('../../assets/images/game/powerup_bomb.png') },
       { key: 'background', type: 'image', uri: require('../../assets/images/game/background.png') },
+      { key: 'engine_glow', type: 'image', uri: require('../../assets/images/game/engine_glow.png') }, // New asset
       { key: 'explosion', type: 'image', uri: require('../../assets/images/game/explosion.png') },
     ],
     [ASSET_CATEGORIES.AUDIO]: [
@@ -277,13 +278,23 @@ class AssetManager {
               });
             });
 
-            // Add 2-second timeout to prevent global hang (reduced from 10s)
+            // Add 2000ms timeout
             const timeoutPromise = new Promise<Sound>((_, reject) => {
               setTimeout(() => reject(new Error(`Timeout loading sound ${key}`)), 2000);
             });
 
-            return await Promise.race([soundPromise, timeoutPromise]);
+            try {
+              return await Promise.race([soundPromise, timeoutPromise]);
+            } catch (err) {
+              console.warn(`[AssetManager] Sound loading failed/timed out for ${key}, using placeholder.`);
+              throw err; // Throw to trigger Placeholder fallback in loadAssetWithPlaceholder
+            }
           });
+
+          // Verify data is valid (it might be a placeholder)
+          if (!data) {
+            throw new Error(`Failed to load sound ${key} and no placeholder returned`);
+          }
 
           // Estimate size
           if (data.__placeholder) {
@@ -361,8 +372,16 @@ class AssetManager {
   // Play a sound asset
   playSound(key: string, options?: { volume?: number; loop?: boolean }): Sound | null {
     const asset = this.getAsset(key);
+
+    // Check if asset is still loading
+    if (this.loadingPromises.has(key)) {
+      // Silent return while loading
+      return null;
+    }
+
     if (!asset || asset.type !== 'sound' || !asset.loaded) {
-      console.warn(`Sound ${key} not loaded or not a sound asset`);
+      // Only warn if we really expected it to be there and it's not loading
+      // console.warn(`Sound ${key} not loaded or not a sound asset`);
       return null;
     }
 
@@ -370,7 +389,9 @@ class AssetManager {
 
     try {
       // Stop if already playing
-      sound.stop();
+      if (sound.isPlaying()) {
+        sound.stop();
+      }
 
       // Apply options
       if (options?.volume !== undefined) {
@@ -400,7 +421,9 @@ class AssetManager {
     const asset = this.getAsset(key);
     if (asset?.type === 'sound' && asset.loaded) {
       const sound: Sound = asset.data;
-      sound.stop();
+      if (sound.isPlaying()) {
+        sound.stop();
+      }
     }
   }
 
@@ -474,16 +497,19 @@ class AssetManager {
     const definitions = this.assetDefinitions[category];
     if (!definitions) return;
 
-    // Load assets without blocking
-    definitions.forEach(async (definition) => {
+    // Load assets sequentially to avoid overwhelming the bridge/cpu
+    for (const definition of definitions) {
       if (!this.isAssetLoaded(definition.key) && !this.loadingPromises.has(definition.key)) {
         try {
+          // Add a small delay between loads to yield to UI thread
+          await new Promise(resolve => setTimeout(resolve, 50));
           await this.loadAsset(definition);
         } catch (error) {
-          // Silent fail for preloading
+          // Silent fail for preloading, will use placeholder
+          console.warn(`[AssetManager] Failed to preload ${definition.key}:`, error);
         }
       }
-    });
+    }
   }
 
   // Clear all assets (for testing or reset)

@@ -5,7 +5,7 @@ import { GameEntity, Position, Velocity, Health, PlayerComponent, EntityType } f
  * @param initialPosition - Starting position of the player
  * @returns A complete player entity
  */
-export const createPlayerEntity = (initialPosition: Position = { x: 200, y: 500 }): GameEntity => {
+export const createPlayerEntity = (initialPosition: Position = { x: 200, y: 600 }): GameEntity => {
   const playerId = `player_${Date.now()}`;
 
   return {
@@ -15,8 +15,8 @@ export const createPlayerEntity = (initialPosition: Position = { x: 200, y: 500 
     components: {
       position: {
         ...initialPosition,
-        width: 40,
-        height: 40,
+        width: 60,
+        height: 80,
         rotation: 0,
       },
       velocity: {
@@ -39,6 +39,7 @@ export const createPlayerEntity = (initialPosition: Position = { x: 200, y: 500 
         powerUps: [],
         score: 0,
         lives: 3,
+        weaponLevel: 1,
       },
       collider: {
         type: 'circle',

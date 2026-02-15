@@ -37,11 +37,15 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({
     const newHighScore = score > highScore;
     setIsNewHighScore(newHighScore);
 
-    // Play sound effect
-    if (newHighScore) {
-      assetManager.playSound('high_score');
-    } else {
-      assetManager.playSound('game_over');
+    // Play sound effect - wrapped in a try/catch to ensure screen doesn't freeze
+    try {
+      if (newHighScore) {
+        assetManager.playSound('high_score');
+      } else {
+        assetManager.playSound('game_over');
+      }
+    } catch (e) {
+      console.warn('Failed to play game over sound:', e);
     }
 
     // Animate screen entrance
@@ -69,7 +73,14 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({
 
   // Handle button press with sound
   const handleButtonPress = (action: () => void, soundKey: string = 'button_click') => {
-    assetManager.playSound(soundKey);
+    // Attempt to play sound but DON'T wait for it or let it block the action
+    try {
+      assetManager.playSound(soundKey);
+    } catch (e) {
+      console.warn(`Failed to play ${soundKey} sound:`, e);
+    }
+
+    // Execute action immediately
     action();
   };
 
@@ -176,6 +187,7 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({
             <TouchableOpacity
               style={styles.button}
               onPress={() => handleButtonPress(onRestart, 'game_start')}
+              activeOpacity={0.7}
             >
               <LinearGradient
                 colors={['#00ff88', '#00cc66']}
@@ -190,6 +202,7 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({
             <TouchableOpacity
               style={styles.button}
               onPress={() => handleButtonPress(onMenu)}
+              activeOpacity={0.7}
             >
               <LinearGradient
                 colors={['#666666', '#444444']}

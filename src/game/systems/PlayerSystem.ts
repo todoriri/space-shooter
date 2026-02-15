@@ -1,6 +1,7 @@
+import { Dimensions } from 'react-native';
 import { GameEntity, EntityType, BulletType } from '../../types';
 import { createBulletEntity } from '../entities/Bullet';
-import { createBombEffect } from './ParticleSystem';
+import { createBombEffect, createEngineTrailEffect } from './ParticleSystem';
 
 // Input state interface
 export interface InputState {
@@ -41,62 +42,127 @@ export const PlayerSystem = (
         }
     }
 
-    // 1. Handle Movement
+    // 4. Handle Movement with Smoothing
+    // Initialize targetPosition if missing
+    if (!playerComp.targetPosition) {
+        playerComp.targetPosition = { ...position };
+    }
+
+    // Apply input to TARGET position (instant response to input)
     if (input.move.x !== 0 || input.move.y !== 0) {
-        // Update position based on input (assuming input.move is delta or velocity factor)
-        // Here we assume standard normalized input vector scaled by speed
-        // But TouchControls usually gives a delta.
-        // Let's assume input.move IS the delta from the joystick
+        playerComp.targetPosition.x += input.move.x;
+        playerComp.targetPosition.y += input.move.y;
 
-        // Apply movement (simple direct translation for now, or velocity based)
-        // If using velocity component:
-        if (player.components.velocity) {
-            // Logic would be here, but for now getting simple position update
-            // We'll update position directly for responsiveness with TouchControls
-            position.x += input.move.x;
-            position.y += input.move.y;
-
-            // Boundary checks (keep player on screen)
-            // Hardcoded screen limits for now or passed in checks
-            const SCREEN_WIDTH = 400; // Approximate
-            const SCREEN_HEIGHT = 800; // Approximate
-
-            position.x = Math.max(20, Math.min(SCREEN_WIDTH - 20, position.x));
-            position.y = Math.max(50, Math.min(SCREEN_HEIGHT - 50, position.y));
-
-            // Reset move input after processing (if it's a delta that accumulates)
-            // But TouchControls usually sends continuous stream. 
-            // We will rely on GameEngine to reset it or keep updated.
-        }
-
-        // Reset input move if it's treated as a per-frame delta
+        // Reset input immediately
         input.move = { x: 0, y: 0 };
     }
+
+    // Constrain TARGET position to screen bounds
+    const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+    const pWidth = position.width || 50;
+    const pHeight = position.height || 50;
+
+    playerComp.targetPosition.x = Math.max(pWidth / 2, Math.min(SCREEN_WIDTH - pWidth / 2, playerComp.targetPosition.x));
+    playerComp.targetPosition.y = Math.max(pHeight / 2, Math.min(SCREEN_HEIGHT - pHeight / 2, playerComp.targetPosition.y));
+
+    // Smoothly interpolate CURRENT position towards TARGET position
+    // Lerp factor: 0.2 gives good responsiveness with slight weight. 
+    // Higher = snappier, Lower = smoother/laggy.
+    const smoothingFactor = 0.2;
+
+    position.x += (playerComp.targetPosition.x - position.x) * smoothingFactor;
+    position.y += (playerComp.targetPosition.y - position.y) * smoothingFactor;
+
+    // Snap to target if very close to prevent micro-jitter
+    if (Math.abs(playerComp.targetPosition.x - position.x) < 0.1) position.x = playerComp.targetPosition.x;
+    if (Math.abs(playerComp.targetPosition.y - position.y) < 0.1) position.y = playerComp.targetPosition.y;
+
+    // 5. Engine Trails (Visual Smoothing)
+    const TRAIL_INTERVAL = 50; // ms
+    if (!playerComp.lastTrailTime || currentTime - playerComp.lastTrailTime > TRAIL_INTERVAL) {
+        playerComp.lastTrailTime = currentTime;
+
+        // Offset trail to behind ship
+        const trailPos = {
+            x: position.x,
+            y: position.y + (position.height || 50) / 2 + 5,
+        };
+
+        const trail = createEngineTrailEffect(trailPos);
+        entities[trail.id] = trail;
+    }
+
+    /* Original Direct Movement Logic - Commented out for Smoothing
+    if (input.move.x !== 0 || input.move.y !== 0) {
+        position.x += input.move.x;
+        position.y += input.move.y;
+
+        // ... boundary checks ...
+        input.move = { x: 0, y: 0 };
+    }
+    */
 
     // 2. Handle Shooting
     if (input.shooting) {
         const now = Date.now();
         // Check cooldown
         if (now - playerComp.lastShotTime >= playerComp.shootCooldown * 1000) {
-            // Create bullet
-            // We need to return new entities object with bullet added
-            // Position is top of player
-            const bulletStartPos = {
-                x: position.x,
-                y: position.y - (position.height || 0) / 2,
-                width: 10,
-                height: 10,
-                rotation: 0
+            // Create bullets based on weapon level
+            const weaponLevel = playerComp.weaponLevel || 1;
+            const bulletSpeed = -600;
+            const bulletY = position.y - (position.height || 0) / 2;
+
+            // Helper to create a bullet
+            const createBullet = (xOffset: number, angle: number = 0) => {
+                const bulletStartPos = {
+                    x: position.x + xOffset,
+                    y: bulletY,
+                    width: 10,
+                    height: 10,
+                    rotation: angle
+                };
+
+                const velocityX = angle !== 0 ? Math.sin(angle * (Math.PI / 180)) * 400 : 0;
+
+                const bullet = createBulletEntity(
+                    bulletStartPos,
+                    { x: velocityX, y: bulletSpeed, maxSpeed: 800, acceleration: 0, friction: 0 },
+                    BulletType.PLAYER,
+                    player.id
+                );
+
+                entities[bullet.id] = bullet;
             };
 
-            const bullet = createBulletEntity(
-                bulletStartPos,
-                { x: 0, y: -600, maxSpeed: 800, acceleration: 0, friction: 0 },
-                BulletType.PLAYER, // 'player' bullet type
-                player.id
-            );
+            // Switch based on weapon level
+            switch (weaponLevel) {
+                case 1:
+                    // Single shot
+                    createBullet(0);
+                    break;
 
-            entities[bullet.id] = bullet;
+                case 2:
+                    // Double shot
+                    createBullet(-10);
+                    createBullet(10);
+                    break;
+
+                case 3:
+                    // Spread shot (Tri-shot)
+                    createBullet(0);       // Center
+                    createBullet(-15, -15); // Left angled
+                    createBullet(15, 15);   // Right angled
+                    break;
+
+                default:
+                    // Fallback to max level behavior if somehow higher
+                    createBullet(0);
+                    createBullet(-15, -15);
+                    createBullet(15, 15);
+                    createBullet(-30, -30);
+                    createBullet(30, 30);
+                    break;
+            }
 
             // Update cooldown
             playerComp.lastShotTime = now;

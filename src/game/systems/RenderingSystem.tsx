@@ -5,6 +5,8 @@ import React from 'react';
 import { View, StyleSheet, Dimensions, Text } from 'react-native';
 import { GameEntity, EntityType, PowerUpType, EnemyType, BulletType } from '../../types';
 import { assetManager } from '../../utils/AssetManager';
+import { EntitySprite } from '../components/rendering/EntitySprite';
+import { HealthBar } from '../components/rendering/HealthBar';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -16,6 +18,16 @@ const isPlaceholderAsset = (spriteKey?: string): boolean => {
   if (!spriteKey) return false;
   return assetManager.isPlaceholderAsset(spriteKey);
 };
+
+export interface HealthBarProps {
+  current: number;
+  max: number;
+  width?: number | string;
+  height?: number;
+  color?: string;
+  backgroundColor?: string;
+  borderRadius?: number;
+}
 
 // Component types for rendering
 export interface RenderableComponent {
@@ -112,9 +124,15 @@ export const RenderingSystem = (entities: Record<string, GameEntity>) => {
       case EntityType.POWER_UP:
         renderComponent = renderPowerUp(entity, entityStyle);
         break;
+      case EntityType.FLOATING_TEXT:
+        renderComponent = renderFloatingText(entity, entityStyle);
+        break;
       default:
-        renderComponent = renderGeneric(entity, entityStyle);
+        // Use container style for generic
+        renderComponent = <View key={entity.id} style={[entityStyle, styles.container]} />;
     }
+
+
 
     renderables.push(renderComponent);
   });
@@ -130,6 +148,9 @@ const renderPlayer = (entity: GameEntity, style: any): JSX.Element => {
 
   // Check if using placeholder asset
   const isPlaceholder = isPlaceholderAsset(renderable?.sprite);
+
+  // Override background color to avoid "blue box" behind sprite
+  const containerStyle = { ...style, backgroundColor: 'transparent' };
 
   // Add invulnerability effect (blinking)
   if (healthComp?.invulnerable) {
@@ -147,25 +168,18 @@ const renderPlayer = (entity: GameEntity, style: any): JSX.Element => {
     style.borderStyle = 'dashed';
   }
 
-  // Player ship shape (triangle pointing up)
   return (
-    <View key={entity.id} style={[style, styles.playerShip]}>
-      {/* Player ship body */}
-      <View style={styles.playerBody} />
-
-      {/* Engine glow */}
-      <View style={styles.engineGlow} />
-
+    <View key={entity.id} style={[style, styles.container]}>
+      <EntitySprite
+        type={EntityType.PLAYER}
+        width={style.width}
+        height={style.height}
+        color={renderable?.color || '#FFFFFF'}
+        isPlaceholder={isDevelopmentMode && isPlaceholder}
+      />
       {/* Shield effect if active */}
       {entity.components.health?.invulnerable && (
         <View style={styles.shieldEffect} />
-      )}
-
-      {/* Placeholder indicator in development mode */}
-      {isDevelopmentMode && isPlaceholder && (
-        <View style={styles.placeholderIndicator}>
-          <Text style={styles.placeholderText}>P</Text>
-        </View>
       )}
     </View>
   );
@@ -175,48 +189,46 @@ const renderPlayer = (entity: GameEntity, style: any): JSX.Element => {
 const renderEnemy = (entity: GameEntity, style: any): JSX.Element => {
   const enemyComp = entity.components.enemy;
   const enemyType = enemyComp?.type || EnemyType.BASIC;
+  const renderable = entity.components.renderable;
 
-  // Adjust style based on enemy type
-  switch (enemyType) {
-    case EnemyType.BASIC:
-      style.backgroundColor = '#FF6B6B'; // Red
-      break;
-    case EnemyType.DIVING:
-      style.backgroundColor = '#FFA726'; // Orange
-      style.borderRadius = 8;
-      break;
-    case EnemyType.SHOOTING:
-      style.backgroundColor = '#66BB6A'; // Green
-      style.borderRadius = 6;
-      break;
-    case EnemyType.BOSS:
-      style.backgroundColor = '#AB47BC'; // Purple
-      style.borderRadius = 20;
-      style.shadowRadius = 20;
-      style.elevation = 20;
-      break;
-  }
+  // Actually style contains position and rotation, so we keep it but override bg color
+  const containerStyle = { ...style, backgroundColor: 'transparent' };
 
-  // Health bar for boss
-  if (enemyType === EnemyType.BOSS && entity.components.health) {
-    const health = entity.components.health;
-    const healthPercent = (health.current / health.max) * 100;
+  const { width, height } = style;
 
-    return (
-      <View key={entity.id} style={[style, styles.bossContainer]}>
-        <View style={styles.bossBody} />
-
-        {/* Boss health bar */}
-        <View style={styles.bossHealthBar}>
-          <View style={[styles.bossHealthFill, { width: `${healthPercent}%` }]} />
-        </View>
-      </View>
-    );
-  }
+  // Helper to determine subType for EntitySprite
+  const getSubType = (e: GameEntity) => {
+    switch (e.type) {
+      case EntityType.ENEMY: return e.components.enemy?.type;
+      case EntityType.BULLET: return e.components.bullet?.type;
+      case EntityType.POWER_UP: return e.components.powerUp?.type;
+      default: return undefined;
+    }
+  };
 
   return (
-    <View key={entity.id} style={[style, styles.enemyShip]}>
-      <View style={styles.enemyBody} />
+    <View key={entity.id} style={[style, styles.container, { backgroundColor: 'transparent' }]}>
+      <EntitySprite
+        type={entity.type}
+        subType={getSubType(entity)}
+        width={width}
+        height={height}
+        color={renderable?.color || '#FFFFFF'}
+        isPlaceholder={renderable?.sprite === undefined}
+      />
+      {/* Health bar for boss */}
+      {enemyType === EnemyType.BOSS && entity.components.health && (
+        <View style={styles.bossHealthBarContainer}>
+          <HealthBar
+            current={entity.components.health.current}
+            max={entity.components.health.max}
+            width="120%"
+            height={6}
+            color="#4CAF50"
+            borderRadius={3}
+          />
+        </View>
+      )}
     </View>
   );
 };
@@ -225,118 +237,90 @@ const renderEnemy = (entity: GameEntity, style: any): JSX.Element => {
 const renderBullet = (entity: GameEntity, style: any): JSX.Element => {
   const bulletComp = entity.components.bullet;
   const bulletType = bulletComp?.type || BulletType.PLAYER;
+  const renderable = entity.components.renderable;
 
-  // Adjust style based on bullet type
-  switch (bulletType) {
-    case BulletType.PLAYER:
-      style.backgroundColor = '#4FC3F7'; // Light blue
-      style.borderRadius = 999;
-      break;
-    case BulletType.ENEMY:
-      style.backgroundColor = '#FF8A65'; // Light red
-      style.borderRadius = 999;
-      style.transform = [{ rotate: '180deg' }]; // Pointing downward
-      break;
-    case BulletType.POWER_UP:
-      style.backgroundColor = '#BA68C8'; // Purple
-      style.borderRadius = 999;
-      style.shadowColor = '#BA68C8';
-      style.shadowRadius = 15;
-      style.elevation = 15;
-      break;
-  }
+  // Helper to determine subType
+  const getSubType = (e: GameEntity) => e.components.bullet?.type;
 
-  // Trail effect for bullets
-  if (entity.components.renderable?.trailEffect) {
-    const trailLength = entity.components.renderable.trailLength || 10;
-    const velocity = entity.components.velocity;
+  const { width, height } = style;
 
-    if (velocity) {
-      // Calculate trail direction
-      const speed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
-      if (speed > 0) {
-        const trailStyle = {
-          ...style,
-          width: (style.width as number) * 0.5,
-          height: trailLength,
-          backgroundColor: `${style.backgroundColor}80`, // 50% opacity
-          left: (style.left as number) + (style.width as number) / 4,
-          top: (style.top as number) - trailLength,
-        };
-
-        return (
-          <View key={entity.id}>
-            <View style={trailStyle} />
-            <View style={[style, styles.bullet]} />
-          </View>
-        );
-      }
-    }
-  }
-
-  return <View key={entity.id} style={[style, styles.bullet]} />;
+  return (
+    <View key={entity.id} style={[style, styles.container, { backgroundColor: 'transparent' }]}>
+      {/* Trail effect logic simplified or moved */}
+      {entity.components.renderable?.trailEffect ? (
+        <View style={{
+          position: 'absolute',
+          top: -10,
+          width: width * 0.5,
+          height: 10,
+          backgroundColor: renderable?.color,
+          opacity: 0.5
+        }} />
+      ) : null}
+      <EntitySprite
+        type={EntityType.BULLET}
+        subType={getSubType(entity)}
+        width={width}
+        height={height}
+        color={renderable?.color || '#FFFFFF'}
+        isPlaceholder={renderable?.sprite === undefined}
+      />
+    </View>
+  );
 };
 
 // Render power-up based on type
 const renderPowerUp = (entity: GameEntity, style: any): JSX.Element => {
   const powerUpComp = entity.components.powerUp;
   const powerUpType = powerUpComp?.type || PowerUpType.SHIELD;
+  const renderable = entity.components.renderable;
 
-  // Adjust style based on power-up type
-  switch (powerUpType) {
-    case PowerUpType.SHIELD:
-      style.backgroundColor = '#29B6F6'; // Blue
-      break;
-    case PowerUpType.RAPID_FIRE:
-      style.backgroundColor = '#FFEE58'; // Yellow
-      break;
-    case PowerUpType.MULTI_SHOT:
-      style.backgroundColor = '#66BB6A'; // Green
-      break;
-    case PowerUpType.BOMB:
-      style.backgroundColor = '#EF5350'; // Red
-      break;
-    case PowerUpType.HEALTH:
-      style.backgroundColor = '#EC407A'; // Pink
-      break;
-    case PowerUpType.SCORE:
-      style.backgroundColor = '#AB47BC'; // Purple
-      break;
-  }
+  // Helper to determine subType
+  const getSubType = (e: GameEntity) => e.components.powerUp?.type;
 
-  // Power-up icon (simple geometric shape)
-  let iconStyle: any = styles.powerUpIcon;
-  switch (powerUpType) {
-    case PowerUpType.SHIELD:
-      iconStyle = styles.shieldIcon;
-      break;
-    case PowerUpType.RAPID_FIRE:
-      iconStyle = styles.rapidFireIcon;
-      break;
-    case PowerUpType.MULTI_SHOT:
-      iconStyle = styles.multiShotIcon;
-      break;
-    case PowerUpType.BOMB:
-      iconStyle = styles.bombIcon;
-      break;
-    case PowerUpType.HEALTH:
-      iconStyle = styles.healthIcon;
-      break;
-    case PowerUpType.SCORE:
-      iconStyle = styles.scoreIcon;
-      break;
-  }
+  const { width, height } = style;
 
   return (
-    <View key={entity.id} style={[style, styles.powerUp]}>
-      <View style={iconStyle} />
+    <View key={entity.id} style={[style, styles.container, { backgroundColor: 'transparent' }]}>
+      <EntitySprite
+        type={EntityType.POWER_UP}
+        subType={getSubType(entity)}
+        width={width}
+        height={height}
+        color={renderable?.color || '#FFFFFF'}
+        isPlaceholder={renderable?.sprite === undefined}
+      />
     </View>
   );
 };
 
 // Render generic entity (fallback)
 const renderGeneric = (entity: GameEntity, style: any): JSX.Element => {
-  return <View key={entity.id} style={[style, styles.generic]} />;
+  return <View key={entity.id} style={[style, { justifyContent: 'center', alignItems: 'center' }]} />;
+};
+
+// Render floating text
+const renderFloatingText = (entity: GameEntity, style: any): JSX.Element => {
+  const ft = entity.components.floatingText;
+  const renderable = entity.components.renderable;
+
+  if (!ft) return <View />;
+
+  return (
+    <View key={entity.id} style={[style, styles.container, { backgroundColor: 'transparent' }]}>
+      <Text style={{
+        color: renderable?.color || '#FFFFFF',
+        fontSize: ft.size,
+        fontWeight: 'bold',
+        textShadowColor: 'black',
+        textShadowOffset: { width: 1, height: 1 },
+        textShadowRadius: 2,
+        opacity: renderable?.alpha || 1,
+      }}>
+        {ft.text}
+      </Text>
+    </View>
+  );
 };
 
 // Helper to create renderable component
@@ -359,33 +343,12 @@ export const createRenderableComponent = (
 
 // Styles for different entity types
 const styles = StyleSheet.create({
-  // Player ship styles
-  playerShip: {
+  container: {
     justifyContent: 'center',
     alignItems: 'center',
   },
-  playerBody: {
-    width: 0,
-    height: 0,
-    backgroundColor: 'transparent',
-    borderStyle: 'solid',
-    borderLeftWidth: 20,
-    borderRightWidth: 20,
-    borderBottomWidth: 40,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderBottomColor: '#FFFFFF',
-    transform: [{ translateY: -10 }], // Center visually
-  },
-  engineGlow: {
-    position: 'absolute',
-    bottom: -5,
-    width: '40%',
-    height: 10,
-    backgroundColor: '#4FC3F7',
-    borderRadius: 5,
-    opacity: 0.7,
-  },
+
+  // Shield effect
   shieldEffect: {
     position: 'absolute',
     width: '120%',
@@ -396,124 +359,16 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
 
-  // Enemy ship styles
-  enemyShip: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  enemyBody: {
-    width: '70%',
-    height: '70%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-  },
-  bossContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  bossBody: {
-    width: '80%',
-    height: '80%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-  },
-  bossHealthBar: {
+  // Boss Health Bar
+  bossHealthBarContainer: {
     position: 'absolute',
     bottom: -15,
     width: '120%',
-    height: 6,
-    backgroundColor: '#333',
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  bossHealthFill: {
-    height: '100%',
-    backgroundColor: '#4CAF50',
-  },
-
-  // Bullet styles
-  bullet: {
-    justifyContent: 'center',
     alignItems: 'center',
   },
 
-  // Power-up styles
-  powerUp: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 999,
-  },
-  powerUpIcon: {
-    width: '50%',
-    height: '50%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 4,
-  },
-  shieldIcon: {
-    width: '60%',
-    height: '60%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 999,
-    borderWidth: 2,
-    borderColor: '#29B6F6',
-  },
-  rapidFireIcon: {
-    width: '50%',
-    height: '50%',
-    backgroundColor: '#FFFFFF',
-    transform: [{ rotate: '45deg' }],
-  },
-  multiShotIcon: {
-    width: '50%',
-    height: '50%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 999,
-    position: 'relative',
-  },
-  bombIcon: {
-    width: '50%',
-    height: '50%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 999,
-  },
-  healthIcon: {
-    width: '50%',
-    height: '50%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 2,
-  },
-  scoreIcon: {
-    width: '50%',
-    height: '50%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 999,
-  },
-
-  // Generic entity style
-  generic: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  // Placeholder indicator styles (development only)
-  placeholderIndicator: {
-    position: 'absolute',
-    top: -10,
-    right: -10,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#FF9800',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#FFF',
-  },
-  placeholderText: {
-    color: '#FFF',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
+  // Keep legacy styles referenced by other parts if any, or safe delete
+  // ...
 });
 
 // Export a simple component for testing
