@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Switch, BackHandler, ScrollView } from 'react-native';
 import { useGameState } from '../game/GameState';
 
-import { loadGameSettings, saveGameSettings, filterSettings, GameSettings, DEFAULT_SETTINGS } from '../utils/storage';
+import { loadGameSettings, saveGameSettings, GameSettings, DEFAULT_SETTINGS } from '../utils/storage';
 import { assetManager } from '../utils/AssetManager';
 import { GameAudio } from '../utils/AudioManager';
 

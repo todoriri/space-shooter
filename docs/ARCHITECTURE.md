@@ -365,6 +365,7 @@ Game state is currently split across:
 |-------|----------|----------|--------|
 | Duplicate switch case | GameEngine.tsx:309 | Critical | ✅ Fixed |
 | Power-up collision bug | CollisionSystemV2.ts:109 | Critical | ✅ Fixed |
+| **Bomb lifetime bug** | **PlayerSystem.ts:216** | **Critical** | **✅ Fixed** |
 | Console.log in production | MovementSystemV2.ts:11 | High | ✅ Fixed |
 | Unused functions | GameEngine.tsx:353-431 | Medium | ✅ Removed |
 | Magic numbers | Multiple files | Medium | ✅ Extracted to constants |
@@ -375,7 +376,7 @@ Game state is currently split across:
 | Type safety (EntityType.PARTICLE) | ParticleSystem.ts | Low | ✅ Fixed |
 | Hardcoded delta time | PlayerSystem.ts:23 | Low | ✅ Fixed |
 
-### Files Addressed (Sprint 1, 2 & 3 Complete)
+### Files Addressed (Sprint 1-6 Complete)
 
 ```
 src/game/GameEngine.tsx
@@ -404,7 +405,8 @@ src/game/systems/RenderingSystem.tsx
 src/game/systems/PlayerSystem.ts
 ├── ✅ Fixed: Removed unused hardcoded deltaTime
 ├── ✅ Fixed: Console.log wrapped in __DEV__
-└── ✅ Cleaned: Removed commented-out code
+├── ✅ Cleaned: Removed commented-out code
+└── ✅ Fixed: Bomb lifetime unit mismatch (3000ms → 3.0s)
 
 src/game/systems/PowerUpSystem.ts
 └── ✅ Fixed: Console.log wrapped in __DEV__
@@ -426,6 +428,59 @@ src/game/systems/VisualEffectsSystem.ts - Visual timer system
 docs/IMPROVEMENT_PLAN.md          - Detailed improvement tracking
 ```
 
+### Performance Optimizations (Sprint 7)
+
+The following performance optimizations were implemented:
+
+1. **Particle Cap** - Limited active particles to 30 concurrent for stable 60 FPS
+2. **Reduced Particle Counts** - Explosions: 20→10, Bomb debris: 16→8
+3. **Collision Optimization** - Particles skipped in collision detection
+
+Files modified for performance:
+- `src/game/systems/ParticleSystem.ts` - Added particle cap, reduced counts
+- `src/game/systems/CollisionSystemV2.ts` - Skip particles in collision checks
+
+### Bomb Mechanics Fix (Sprint 8)
+
+Fixed bomb damage propagation to work in all directions (radius-based):
+
+**Previous Behavior:** Bomb relied on continuous AABB collision detection, causing damage to appear to "propagate forward" as enemies moved into the collision area.
+
+**New Behavior:** Bomb now applies instant radius-based damage to all enemies within its radius when activated, using `checkCircleAABBCollision` for accurate circle-to-rectangle collision detection.
+
+```typescript
+// Instant radius damage on bomb activation
+const isInRange = checkCircleAABBCollision(
+    bombCenterX, bombCenterY, bombRadius,
+    enemyX, enemyY, enemyWidth, enemyHeight
+);
+```
+
+Files modified:
+- `src/game/systems/PlayerSystem.ts` - Added instant radius damage logic
+- `src/game/systems/CollisionSystemV2.ts` - Skip `visual_only` tagged entities
+
+### Initial Load Optimization (Sprint 9)
+
+Implemented warm-up delay and frame time optimization:
+
+1. **Initial Warm-up Delay** - 1.5 second delay before first wave spawns
+2. **WaveSystem Debug Logging** - Wrapped console.log in `__DEV__` checks
+3. **Particle Type Safety** - Added `EntityType.PARTICLE` to bomb particles
+
+```typescript
+// WaveSystem.ts - Warm-up delay for game stabilization
+const INITIAL_WARMUP_DELAY = 1500; // 1.5 seconds
+if (waveState.currentWave === 1) {
+  waveState.lastSpawnTime = currentTime + INITIAL_WARMUP_DELAY;
+}
+```
+
+Files modified:
+- `src/game/systems/WaveSystem.ts` - Added warm-up delay, wrapped debug logs
+- `src/game/GameEngine.tsx` - Added `intermissionTimer` to waveManager
+- `src/game/systems/ParticleSystem.ts` - Added type to bomb particles
+
 ### Improvement Roadmap
 
 See [IMPROVEMENT_PLAN.md](./IMPROVEMENT_PLAN.md) for detailed implementation steps.
@@ -434,9 +489,14 @@ See [IMPROVEMENT_PLAN.md](./IMPROVEMENT_PLAN.md) for detailed implementation ste
 - **Sprint 2:** ✅ Code quality & tests - Complete
 - **Sprint 3:** ✅ Architecture consolidation - Complete
 - **Sprint 4:** ✅ Polish & documentation - Complete
+- **Sprint 5:** ✅ Code review fixes - Complete
+- **Sprint 6:** ✅ Bomb lifetime bug fix - Complete
+- **Sprint 7:** ✅ Performance improvements (P1) - Complete
+- **Sprint 8:** ✅ Bomb radius damage fix - Complete
+- **Sprint 9:** ✅ Initial load optimization - Complete
 
 ---
 
 *Last Updated: 2026-02-15*
-*Architecture Version: 4.4*
-*Status: All Sprints Complete, Code Review Fixes Applied*
+*Architecture Version: 4.8*
+*Status: Sprint 1-9 Complete*

@@ -286,7 +286,7 @@ export const createPowerUpEntity = (
 
   return {
     ...baseConfig,
-    components: config.components,
+    components: config.components as any, // Cast to any to avoid strict checking on union types for now
   };
 };
 
@@ -350,6 +350,8 @@ export const collectPowerUp = (powerUp: GameEntity): GameEntity => {
       renderable: {
         ...powerUp.components.renderable,
         visible: false, // Hide collected power-up
+        zIndex: powerUp.components.renderable?.zIndex || 0,
+        color: powerUp.components.renderable?.color || '#FFFFFF',
       },
     },
   };
@@ -548,8 +550,8 @@ export const updatePowerUpDurations = (player: GameEntity, deltaTime: number): G
   let updatedHealth = player.components.health;
 
   // Update shield duration if active
-  if (updatedHealth.invulnerable && updatedHealth.invulnerableTimer > 0) {
-    updatedHealth.invulnerableTimer = Math.max(0, updatedHealth.invulnerableTimer - deltaTime);
+  if (updatedHealth.invulnerable && (updatedHealth.invulnerableTimer ?? 0) > 0) {
+    updatedHealth.invulnerableTimer = Math.max(0, (updatedHealth.invulnerableTimer ?? 0) - deltaTime);
 
     // If timer reaches 0, disable invulnerability
     if (updatedHealth.invulnerableTimer === 0) {

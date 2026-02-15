@@ -2,6 +2,7 @@ import { Dimensions } from 'react-native';
 import { GameEntity, EntityType, BulletType } from '../../types';
 import { createBulletEntity } from '../entities/Bullet';
 import { createBombEffect, createEngineTrailEffect } from './ParticleSystem';
+import { checkCircleAABBCollision } from '../../utils/collision';
 
 // Input state interface
 export interface InputState {
@@ -190,15 +191,72 @@ export const PlayerSystem = (
             const { width: sWidth, height: sHeight } = Dimensions.get('window');
             const bombSize = sWidth * 0.8;
 
+            // INSTANT RADIUS DAMAGE - Apply damage to all enemies within bomb radius immediately
+            const bombCenterX = sWidth / 2;
+            const bombCenterY = sHeight / 2;
+            const bombRadius = bombSize / 2;
+
+            // Find and damage all enemies within radius
+            Object.values(entities).forEach(targetEntity => {
+                if (targetEntity.type !== EntityType.ENEMY || !targetEntity.active) return;
+
+                const enemyPos = targetEntity.components.position;
+                const enemyHealth = targetEntity.components.health;
+                const enemyComp = targetEntity.components.enemy;
+
+                if (!enemyPos || !enemyHealth) return;
+
+                // Calculate enemy center position
+                const enemyCenterX = enemyPos.x;
+                const enemyCenterY = enemyPos.y;
+                const enemyWidth = enemyPos.width || 40;
+                const enemyHeight = enemyPos.height || 40;
+
+                // Check if enemy is within bomb radius using circle-to-AABB collision
+                const isInRange = checkCircleAABBCollision(
+                    bombCenterX,
+                    bombCenterY,
+                    bombRadius,
+                    enemyCenterX - enemyWidth / 2,
+                    enemyCenterY - enemyHeight / 2,
+                    enemyWidth,
+                    enemyHeight
+                );
+
+                if (isInRange) {
+                    // Apply massive damage
+                    enemyHealth.current = 0;
+
+                    // Dispatch enemy destroyed event
+                    dispatch({
+                        type: 'enemyDestroyed',
+                        data: {
+                            position: { x: enemyCenterX, y: enemyCenterY },
+                            enemyType: enemyComp?.type || 'unknown',
+                            points: enemyComp?.scoreValue || 100,
+                        },
+                    });
+
+                    // Remove enemy
+                    delete entities[targetEntity.id];
+
+                    // Add score to player
+                    if (playerComp && enemyComp) {
+                        playerComp.score += enemyComp.scoreValue || 100;
+                    }
+                }
+            });
+
+            // Create a purely visual bomb entity (no collision - damage already applied)
             entities[bombId] = {
                 id: bombId,
-                type: EntityType.BULLET, // Treat as a massive bullet
+                type: EntityType.BULLET,
                 active: true,
-                tags: ['bomb', 'player_bullet'],
+                tags: ['bomb', 'visual_only'], // Mark as visual only - skip in collision
                 components: {
                     position: {
-                        x: (sWidth - bombSize) / 2, // Center horizontally
-                        y: (sHeight - bombSize) / 2, // Center vertically
+                        x: (sWidth - bombSize) / 2,
+                        y: (sHeight - bombSize) / 2,
                         width: bombSize,
                         height: bombSize,
                         rotation: 0
@@ -209,11 +267,11 @@ export const PlayerSystem = (
                     },
                     bullet: {
                         type: BulletType.PLAYER,
-                        damage: 1000, // Massive damage
-                        pierce: 9999, // Infinite pierce
-                        currentPierce: 9999,
+                        damage: 0, // No damage - already applied via radius
+                        pierce: 0,
+                        currentPierce: 0,
                         ownerId: player.id,
-                        lifetime: 3.0, // 3 seconds (must match units with age increment in MovementSystem)
+                        lifetime: 3.0, // 3 seconds for visual effect
                         age: 0
                     },
                     renderable: {

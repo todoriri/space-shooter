@@ -127,12 +127,13 @@ export const SpaceShooterGame = React.forwardRef<any, SpaceShooterGameProps>(({
           waveComplete: false,
           enemiesRemaining: 0,
           enemiesToSpawn: 5, // Let WaveSystem handle spawning
-          lastSpawnTime: 0,
+          lastSpawnTime: 0, // Will be set with warmup delay by WaveSystem
           isBossWave: false,
           bossSpawned: false,
           bossDefeated: false,
           spawnTimer: 0,
           waveStartTime: Date.now(),
+          intermissionTimer: 0,
         }
       }
     };

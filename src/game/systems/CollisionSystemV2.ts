@@ -32,10 +32,20 @@ export const CollisionSystem = (
   const spatialGrid = new SpatialGrid(100); // 100px cell size
   const collisions: CollisionEvent[] = [];
 
-  // First pass: insert all entities into spatial grid
+  // First pass: insert all collidable entities into spatial grid
+  // Skip particles and floating text - they don't participate in collision
   Object.keys(entities).forEach(id => {
     const entity = entities[id];
     if (!entity.active) return;
+
+    // Skip particles and floating text for collision detection (performance optimization)
+    if (entity.type === EntityType.PARTICLE || entity.type === EntityType.FLOATING_TEXT) return;
+
+    // Also skip entities tagged as non-collidable particles
+    if (entity.tags?.includes('particle')) return;
+
+    // Skip visual-only entities (like bomb effects that already dealt damage)
+    if (entity.tags?.includes('visual_only')) return;
 
     const position = entity.components.position;
     if (!position) return;

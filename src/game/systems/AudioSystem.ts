@@ -107,7 +107,13 @@ const handleAudioEvent = (event: any): void => {
       break;
 
     case 'enemyDestroyed':
-      safeAudio('enemyDestroyed', () => GameAudio.playExplosion());
+      safeAudio('enemyDestroyed', () => {
+        // Use different explosion sizes based on enemy type
+        const enemyType = event.data?.enemyType;
+        const size = enemyType === 'boss' ? 'boss' :
+                     enemyType === 'shooting' ? 'medium' : 'small';
+        GameAudio.playExplosion(size);
+      });
       break;
 
     // Collision events
@@ -118,6 +124,10 @@ const handleAudioEvent = (event: any): void => {
     // Power-up events
     case 'powerUpCollect':
       safeAudio('powerUpCollect', () => GameAudio.playPowerUpCollect());
+      break;
+
+    case 'playerBomb':
+      safeAudio('playerBomb', () => GameAudio.playBombActivate());
       break;
 
     case 'powerUpActivated':
@@ -165,11 +175,11 @@ const handleAudioEvent = (event: any): void => {
       break;
 
     case 'bossSpawn':
-      // Optional: Play boss spawn sound
+      safeAudio('bossSpawn', () => GameAudio.playBossWarning());
       break;
 
     case 'bossDefeated':
-      safeAudio('bossDefeated', () => GameAudio.playExplosion());
+      safeAudio('bossDefeated', () => GameAudio.playExplosion('boss'));
       break;
   }
 };

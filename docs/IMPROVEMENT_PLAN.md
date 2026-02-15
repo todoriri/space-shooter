@@ -3,7 +3,7 @@
 **Generated:** 2026-02-14
 **Last Updated:** 2026-02-15
 **Based on:** Comprehensive code review
-**Status:** Complete - All Sprints Finished
+**Status:** Sprint 1-9 Complete, Phase 5 (Visual Polish) In Progress
 
 ---
 
@@ -547,6 +547,284 @@ if (__DEV__) console.log('[PlayerSystem] Bomb input detected');
 
 ---
 
-*Document Version: 1.4*
+## Sprint 6: Gameplay Bug Fixes (2026-02-15)
+
+### Critical Bug: Bomb Lifetime Unit Mismatch ✅ FIXED
+
+**Discovered During:** Playtesting with logcat analysis
+
+**Symptoms:**
+- After throwing a bomb, an invisible collision entity remained at the center of the screen
+- Enemies passing through this invisible area were destroyed
+- The bomb effect appeared to last indefinitely instead of 3 seconds
+
+**Root Cause:**
+The bomb's `lifetime` property was set to `3000` (intended as milliseconds), but the `age` increment in MovementSystemV2 uses `deltaTime` (in seconds, ~0.016 per frame).
+
+```typescript
+// MovementSystemV2.ts:219
+bulletComp.age += deltaTime;  // Adds ~0.016 per frame (seconds)
+
+// PlayerSystem.ts:216 (BEFORE - buggy)
+lifetime: 3000,  // Would require 3000/0.016 = 187,500 frames (~52 minutes) to expire!
+```
+
+**Fix Applied:**
+Changed `lifetime: 3000` to `lifetime: 3.0` to match the seconds-based age increment.
+
+```typescript
+// PlayerSystem.ts:216 (AFTER - fixed)
+lifetime: 3.0,  // 3 seconds (matches units with age increment)
+```
+
+**Verification:**
+Logcat analysis confirmed entity counts return to normal (~60-70) after 3 seconds post-bomb, instead of remaining elevated indefinitely.
+
+### Additional Fix: Type Safety in Bomb Particle Creation ✅ FIXED
+
+**File:** [src/game/systems/ParticleSystem.ts:324](src/game/systems/ParticleSystem.ts#L324)
+**Issue:** Bomb blast particle was still using `'particle' as EntityType` instead of `EntityType.PARTICLE`
+**Fix:** Replaced with proper enum value
+
+---
+
+## Sprint 7: Performance Improvements ✅ COMPLETE
+
+Based on logcat analysis from playtesting sessions, the following performance improvements were implemented:
+
+### P1: Entity Count Optimization ✅ COMPLETE
+
+**Original Issue:** FPS drops to 25-30 when entity count exceeds 70-80 entities
+
+**Metrics from logs:**
+| Entity Count | FPS | Frame Time |
+|--------------|-----|------------|
+| 60-70 | 60 | 16-17ms |
+| 70-80 | 28-30 | 40-50ms |
+| 80+ | 25-28 | 50-63ms |
+
+**Implemented Solutions:**
+
+#### 1. Particle Cap ✅ IMPLEMENTED
+**File:** [src/game/systems/ParticleSystem.ts](src/game/systems/ParticleSystem.ts)
+```typescript
+const MAX_ACTIVE_PARTICLES = 30; // Cap to maintain 60 FPS
+let activeParticleCount = 0;
+
+const canCreateParticle = (): boolean => {
+  return activeParticleCount < MAX_ACTIVE_PARTICLES;
+};
+```
+
+#### 2. Reduced Explosion Particles ✅ IMPLEMENTED
+- **Explosion effect:** Reduced from 20 to 10 particles
+- **Bomb debris:** Reduced from 16 to 8 particles
+- Added dynamic limiting based on available particle slots
+
+#### 3. Skip Particles in Collision System ✅ IMPLEMENTED
+**File:** [src/game/systems/CollisionSystemV2.ts](src/game/systems/CollisionSystemV2.ts)
+```typescript
+// Skip particles and floating text for collision detection (performance optimization)
+if (entity.type === EntityType.PARTICLE || entity.type === EntityType.FLOATING_TEXT) return;
+if (entity.tags?.includes('particle')) return;
+```
+
+**Expected Performance Impact:**
+- Reduced peak entity count from 80-90 to 60-70
+- Eliminated unnecessary collision checks for particles
+- More consistent 60 FPS during intense action
+
+### P2: Frame Time Spike Investigation 🔜 PLANNED
+
+**Current Issue:** Inconsistent frame times (24-63ms range) even at similar entity counts
+
+**Remaining Proposed Solutions:**
+1. **Pre-warm assets during menu** - Load game assets before gameplay starts
+2. **Object pool audit** - Ensure all frequently created objects use pooling
+3. **Reduce object creation in hot paths** - Profile and optimize game loop
+
+### P3: Initial Load Optimization 🔜 PLANNED
+
+**Current Issue:** FPS drops to 30-42 during first 10 seconds of gameplay
+
+**Remaining Proposed Solutions:**
+1. **Asset preloading** - Load all assets during loading screen
+2. **Progressive wave spawning** - Delay first wave until FPS stabilizes
+3. **Warm-up period** - Run empty game loop for 2 seconds before spawning
+
+---
+
+## Sprint 8: Bomb Radius Damage Fix ✅ COMPLETE (2026-02-15)
+
+### Issue: Bomb Damage Only Propagating Forward
+
+**Discovered During:** Playtesting
+
+**Symptoms:**
+- Bomb damage appeared to propagate only "forward" instead of in all directions
+- Enemies entering the bomb area from certain directions weren't damaged immediately
+- Damage seemed to follow enemy movement rather than being instantaneous
+
+**Root Cause:**
+The bomb was implemented as a single stationary collision entity that relied on continuous AABB collision detection. Enemies were only damaged when their bounding box overlapped with the bomb's bounding box during collision checks. Since enemies move downward, they would gradually enter the bomb's collision area, creating the illusion that damage was "propagating forward."
+
+**Original Implementation:**
+```typescript
+// BEFORE - Bomb relied on collision system for damage
+entities[bombId] = {
+    type: EntityType.BULLET,
+    components: {
+        bullet: {
+            damage: 1000,
+            pierce: 9999,  // Damage applied via collision over time
+        }
+    }
+};
+```
+
+**Fix Applied:**
+Implemented instant radius-based damage when the bomb is fired. All enemies within the bomb radius are immediately damaged and destroyed, regardless of their position or movement direction.
+
+```typescript
+// AFTER - Instant radius damage on bomb activation
+const bombCenterX = sWidth / 2;
+const bombCenterY = sHeight / 2;
+const bombRadius = bombSize / 2;
+
+// Find and damage all enemies within radius immediately
+Object.values(entities).forEach(targetEntity => {
+    if (targetEntity.type !== EntityType.ENEMY) return;
+
+    const isInRange = checkCircleAABBCollision(
+        bombCenterX, bombCenterY, bombRadius,
+        enemyCenterX - enemyWidth / 2,
+        enemyCenterY - enemyHeight / 2,
+        enemyWidth, enemyHeight
+    );
+
+    if (isInRange) {
+        enemyHealth.current = 0;
+        // Dispatch events and remove enemy immediately
+    }
+});
+
+// Create visual-only bomb entity for explosion effect
+entities[bombId] = {
+    tags: ['bomb', 'visual_only'],  // Skipped in collision
+    bullet: {
+        damage: 0,  // Damage already applied via radius
+    }
+};
+```
+
+**Files Modified:**
+- `src/game/systems/PlayerSystem.ts` - Added instant radius damage logic, imported `checkCircleAABBCollision`
+- `src/game/systems/CollisionSystemV2.ts` - Added skip for `visual_only` tagged entities
+
+**Expected Behavior:**
+- All enemies within bomb radius are instantly destroyed when bomb activates
+- Visual explosion effect persists for 3 seconds (as before)
+- No residual collision entity remains after explosion ends
+
+---
+
+## Implementation Progress (Updated)
+
+| Issue | Priority | Status | Completed |
+|-------|----------|--------|-----------|
+| Duplicate switch case | P0 | ✅ Fixed | 2026-02-14 |
+| Power-up collision bug | P0 | ✅ Fixed | 2026-02-14 |
+| Debug utility creation | P1 | ✅ Complete | 2026-02-14 |
+| Console.log in production | P1 | ✅ Fixed | 2026-02-14 |
+| Unused functions removed | P1 | ✅ Fixed | 2026-02-14 |
+| State management consolidation | P1 | ✅ Complete | 2026-02-14 |
+| Magic numbers extracted | P2 | ✅ Complete | 2026-02-14 |
+| Entity pool ID fix | P2 | ✅ Fixed | 2026-02-14 |
+| Audio error handling | P2 | ✅ Complete | 2026-02-14 |
+| Git untracked files | P2 | ✅ Complete | 2026-02-14 |
+| Entity mutation pattern | P0 | 📝 Documented | 2026-02-14 |
+| Unit tests passing | P2 | ✅ Complete | 2026-02-14 |
+| Typed event bus | P3 | ✅ Complete | 2026-02-15 |
+| Performance overlay | P3 | ✅ Complete | 2026-02-15 |
+| Duplicate break statement | P2 | ✅ Fixed | 2026-02-15 |
+| Render phase mutation | P2 | ✅ Fixed | 2026-02-15 |
+| Type safety (EntityType.PARTICLE) | P3 | ✅ Fixed | 2026-02-15 |
+| Hardcoded delta time | P3 | ✅ Fixed | 2026-02-15 |
+| Visual effects system | P2 | ✅ Complete | 2026-02-15 |
+| **Bomb lifetime bug** | **P0** | **✅ Fixed** | **2026-02-15** |
+| **Particle cap implementation** | **P1** | **✅ Complete** | **2026-02-15** |
+| **Reduced explosion particles** | **P1** | **✅ Complete** | **2026-02-15** |
+| **Skip particles in collision** | **P1** | **✅ Complete** | **2026-02-15** |
+| **Bomb radius damage fix** | **P0** | **✅ Fixed** | **2026-02-15** |
+| **Initial warmup delay** | **P2** | **✅ Complete** | **2026-02-15** |
+| **WaveSystem debug logging** | **P1** | **✅ Fixed** | **2026-02-15** |
+| **Particle type safety** | **P3** | **✅ Fixed** | **2026-02-15** |
+| **Star Trek audio integration** | **P1** | **✅ Complete** | **2026-02-15** |
+| **Visual improvement plan** | **P2** | **✅ Complete** | **2026-02-15** |
+| **Asset inventory creation** | **P2** | **✅ Complete** | **2026-02-15** |
+
+---
+
+## Sprint 9: Audio & Visual Polish (2026-02-15)
+
+### Audio Integration Complete ✅
+
+Integrated 306 Star Trek sounds from `/mnt/data1/Projects/scrape_star_trek_sounds/` into the game:
+
+| Category | Count | Location |
+|----------|-------|----------|
+| Weapons | 45 | `assets/sounds/sfx/weapons/` |
+| Explosions | 7 | `assets/sounds/sfx/explosions/` |
+| Alerts | 31 | `assets/sounds/sfx/alerts/` |
+| Hits | 7 | `assets/sounds/sfx/hits/` |
+| UI/Computer | 35+ | `assets/sounds/sfx/ui/` |
+| Power-ups | 15 | `assets/sounds/sfx/powerups/` |
+| Ambient | 70+ | `assets/sounds/sfx/ambient/` |
+| Transporter | 48 | `assets/sounds/sfx/transporter/` |
+
+**Primary Game Sounds Implemented:**
+- `shoot_player.mp3` - Player weapon (tng_phaser2_clean)
+- `shoot_enemy.mp3` - Enemy weapon (klingon_weapon_clean)
+- `bomb_activate.mp3` - Bomb screen clear (quantumtorpedoes)
+- `explosion_small/medium/large/boss.mp3` - Context-appropriate explosions
+- `hit_player.mp3`, `hit_enemy.mp3` - Impact sounds
+- `alert.mp3`, `boss_warning.mp3` - Alert sounds
+- `powerup_collect.mp3` - Collection sound
+
+**Files Modified:**
+- `src/utils/AssetManager.ts` - Updated sound paths to sfx/ subdirectory
+- `src/utils/AudioManager.ts` - Added new methods: `playBombActivate()`, `playExplosion(size)`, `playEnemyHit()`, `playAlert()`, `playBossWarning()`
+- `src/game/systems/AudioSystem.ts` - Updated event handlers for context-appropriate sounds
+
+### Visual Improvement Plan Created ✅
+
+Created comprehensive visual specifications in `docs/VISUAL_IMPROVEMENT_PLAN.md`:
+- Player ship specifications (128x128px, teal, animated)
+- Enemy ship specifications (5 types with unique colors)
+- Bullet/projectile specifications
+- Power-up specifications (6 types)
+- Effects specifications (explosions, trails, hit effects)
+- Color palette and art style guide
+- Resolution strategy (1x, 1.5x, 2x, 3x)
+
+### Asset Inventory Created ✅
+
+Created `docs/ASSET_INVENTORY.md` with:
+- Complete sound inventory (306 files organized by category)
+- Image asset status tracking:
+  - 5 real assets
+  - 14 placeholder assets
+  - 8+ missing assets
+- Priority order for image creation
+- Quick reference tables for user to create images
+
+### Documentation Created
+- `docs/VISUAL_IMPROVEMENT_PLAN.md` - Visual asset specifications
+- `docs/ASSET_INVENTORY.md` - Complete asset inventory
+- `docs/ASSET_REQUEST_LIST.md` - List of assets needed from user
+
+---
+
+*Document Version: 1.9*
 *Last Updated: 2026-02-15*
-*Review Status: All Sprints Complete, Code Review Fixes Applied*
+*Review Status: Sprint 1-9 Complete, Phase 5 Visual Polish In Progress*

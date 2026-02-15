@@ -58,69 +58,78 @@ export const RenderingSystem = (entities: Record<string, GameEntity>) => {
   if (!entities) return renderables;
 
   // 1. Calculate Global Shake Offset
-  // Find the system entity (optimized: simpler loop, or we assume it's there)
-  // Since this runs every frame, we want to be fast. 
-  // Maybe checking for 'system_shake' id directly is better if we enforce that ID?
-  // Let's iterate once or check specific key if we know it.
-  // We'll stick to a quick find for now or check entities['system_shake'] based on ShakeSystem.ts.
   const shakeComp = entities['system_shake']?.components?.screenShake;
   const shakeX = shakeComp ? shakeComp.currentOffset.x : 0;
   const shakeY = shakeComp ? shakeComp.currentOffset.y : 0;
 
-  Object.keys(entities).forEach(id => {
+  // Reusable style object structure could be implemented here if strict object pooling was needed,
+  // but React Native's LayoutAnimation or Reanimated handles this better.
+  // For standard RN Views, we just try to be efficient with transforms.
+
+  const entityIds = Object.keys(entities);
+  const len = entityIds.length;
+
+  for (let i = 0; i < len; i++) {
+    const id = entityIds[i];
     const entity = entities[id];
 
     // Skip if entity is not active or not visible
     if (!entity.active || !entity.components.renderable?.visible) {
-      return;
+      continue;
     }
 
     const renderable = entity.components.renderable;
     const position = entity.components.position;
 
-    if (!position) return;
+    if (!position) continue;
 
     // Calculate screen position (center of entity)
     // APPLY SHAKE HERE
-    let screenX = position.x - (position.width || 0) / 2;
-    let screenY = position.y - (position.height || 0) / 2;
-
-    // Don't shake UI/HUD if we had checking. 
-    // Entities here are game world objects. UI is separate in GameEngine potentially,
-    // OR entities usually include floating text which we DO want to shake? usually yes.
-    screenX += shakeX;
-    screenY += shakeY;
+    let screenX = position.x - (position.width || 0) / 2 + shakeX;
+    let screenY = position.y - (position.height || 0) / 2 + shakeY;
 
     // Create style for the entity
-    const entityStyle = {
-      position: 'absolute' as const,
+    // We inline the style construction to avoid assigning to intermediate variables that might persist or cause de-opt
+    const entityStyle: any = {
+      position: 'absolute',
       left: screenX,
       top: screenY,
       width: position.width || 0,
       height: position.height || 0,
-      backgroundColor: renderable.color,
+      backgroundColor: renderable.color, // This is often overridden by child components to 'transparent'
       opacity: renderable.alpha,
-      borderRadius: entity.components.collider?.type === 'circle' ? 999 : 0,
-      transform: [
-        { rotate: `${position.rotation || 0}deg` },
-        { scale: renderable.scale || 1 },
-      ],
       zIndex: renderable.zIndex || 0,
+      transform: [], // Initialize empty
     };
+
+    // Optimization: Only add complex properties if needed
+    if (position.rotation) {
+      entityStyle.transform.push({ rotate: `${position.rotation}deg` });
+    }
+    if (renderable.scale && renderable.scale !== 1) {
+      entityStyle.transform.push({ scale: renderable.scale });
+    }
+
+    // Circle optimization
+    if (entity.components.collider?.type === 'circle') {
+      entityStyle.borderRadius = 999;
+    }
 
     // Add glow effect if enabled
     if (renderable.glowEffect) {
-      const style = entityStyle as any;
-      style.shadowColor = renderable.color;
-      style.shadowOffset = { width: 0, height: 0 };
-      style.shadowOpacity = 0.8;
-      style.shadowRadius = 10;
-      style.elevation = 10; // For Android
+      entityStyle.shadowColor = renderable.color;
+      entityStyle.shadowOffset = { width: 0, height: 0 };
+      entityStyle.shadowOpacity = 0.8;
+      entityStyle.shadowRadius = 10;
+      entityStyle.elevation = 10; // For Android
     }
 
     // Add pulse animation if enabled
     if (renderable.pulseEffect) {
       const pulseSpeed = renderable.pulseSpeed || 2;
+      // Use time based on Date.now() for simple pulse, ideally should use game time but this is visual only
+      // Optimization: Calculate this once per frame outside loop if possible, but each entity might have different phase?
+      // For now, simple calc.
       const pulseScale = 1 + Math.sin(Date.now() * 0.001 * pulseSpeed) * 0.1;
       entityStyle.transform.push({ scale: pulseScale });
     }
@@ -148,14 +157,11 @@ export const RenderingSystem = (entities: Record<string, GameEntity>) => {
         renderComponent = renderParticle(entity, entityStyle);
         break;
       default:
-        // Use container style for generic
         renderComponent = <View key={entity.id} style={[entityStyle, styles.container]} />;
     }
 
-
-
     renderables.push(renderComponent);
-  });
+  }
 
   return renderables;
 };

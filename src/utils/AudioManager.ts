@@ -373,9 +373,13 @@ export const GameAudio = {
   playBackgroundMusic(): void {
     const music = assetManager.playSound('bgm_game', { volume: 0.3, loop: true });
     if (!music) {
-      // Fallback or log
       console.warn('Failed to play bgm_game');
     }
+  },
+
+  // Play menu background music
+  playMenuMusic(): void {
+    assetManager.playSound('bgm_menu', { volume: 0.4, loop: true });
   },
 
   // Play player shoot sound
@@ -385,12 +389,24 @@ export const GameAudio = {
 
   // Play enemy shoot sound
   playEnemyShoot(): void {
-    assetManager.playSound('shoot_enemy', { volume: 0.6 });
+    assetManager.playSound('shoot_enemy', { volume: 0.5 });
   },
 
-  // Play explosion sound
-  playExplosion(): void {
-    assetManager.playSound('explosion_small', { volume: 0.8 });
+  // Play bomb activation sound
+  playBombActivate(): void {
+    assetManager.playSound('bomb_activate', { volume: 0.9 });
+  },
+
+  // Play explosion sound (with size variant)
+  playExplosion(size: 'small' | 'medium' | 'large' | 'boss' = 'small'): void {
+    const soundKey = size === 'boss' ? 'explosion_boss' :
+                     size === 'large' ? 'explosion_large' :
+                     size === 'medium' ? 'explosion_medium' :
+                     'explosion_small';
+    const volume = size === 'boss' ? 1.0 :
+                   size === 'large' ? 0.9 :
+                   size === 'medium' ? 0.8 : 0.7;
+    assetManager.playSound(soundKey, { volume });
   },
 
   // Play power-up collect sound
@@ -400,7 +416,22 @@ export const GameAudio = {
 
   // Play player hit sound
   playPlayerHit(): void {
-    assetManager.playSound('player_hit', { volume: 0.8 });
+    assetManager.playSound('hit_player', { volume: 0.8 });
+  },
+
+  // Play enemy hit sound
+  playEnemyHit(): void {
+    assetManager.playSound('hit_enemy', { volume: 0.6 });
+  },
+
+  // Play alert sound
+  playAlert(): void {
+    assetManager.playSound('alert', { volume: 0.6 });
+  },
+
+  // Play boss warning sound
+  playBossWarning(): void {
+    assetManager.playSound('boss_warning', { volume: 0.8 });
   },
 
   // Play game over sound
@@ -410,24 +441,27 @@ export const GameAudio = {
 
   // Play menu select sound
   playMenuSelect(): void {
-    // No specific UI sound in AssetManager, reusing powerup for feedback or silent
-    // assetManager.playSound('ui_menu_select', { volume: 0.6 }); 
+    assetManager.playSound('powerup_collect', { volume: 0.5 });
   },
 
   // Play menu confirm sound
   playMenuConfirm(): void {
-    // No specific UI sound in AssetManager
+    assetManager.playSound('powerup_collect', { volume: 0.6 });
   },
 
   // Stop all game sounds
   stopAllGameSounds(): void {
     assetManager.stopSound('bgm_game');
-    // Add others if strictly needed, but fire-and-forget SFX usually finish themselves
+    assetManager.stopSound('bgm_menu');
+  },
+
+  // Stop background music
+  stopBackgroundMusic(): void {
+    assetManager.stopSound('bgm_game');
   },
 
   // Set game audio volumes
   setGameVolumes(music: number, sfx: number, ui: number): void {
-    // AssetManager handles global volume, specifics would need individual control implementation
-    assetManager.setSoundVolume(sfx); // rudimentary mapping
+    assetManager.setSoundVolume(sfx);
   },
 };

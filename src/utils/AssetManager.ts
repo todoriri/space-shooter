@@ -84,13 +84,24 @@ class AssetManager {
       { key: 'explosion', type: 'image', uri: require('../../assets/images/game/explosion.png') },
     ],
     [ASSET_CATEGORIES.AUDIO]: [
-      // Sound effects
-      { key: 'shoot_player', type: 'sound', uri: require('../../assets/sounds/shoot_player.mp3'), soundOptions: { volume: 0.7 } },
-      { key: 'shoot_enemy', type: 'sound', uri: require('../../assets/sounds/shoot_enemy.mp3'), soundOptions: { volume: 0.5 } },
-      { key: 'explosion_small', type: 'sound', uri: require('../../assets/sounds/explosion_small.mp3'), soundOptions: { volume: 0.8 } },
-      { key: 'explosion_large', type: 'sound', uri: require('../../assets/sounds/explosion_large.mp3'), soundOptions: { volume: 0.8 } },
-      { key: 'powerup_collect', type: 'sound', uri: require('../../assets/sounds/powerup_collect.mp3'), soundOptions: { volume: 0.6 } },
-      { key: 'player_hit', type: 'sound', uri: require('../../assets/sounds/player_hit.mp3'), soundOptions: { volume: 0.7 } },
+      // Weapon sounds (Star Trek inspired)
+      { key: 'shoot_player', type: 'sound', uri: require('../../assets/sounds/sfx/shoot_player.mp3'), soundOptions: { volume: 0.7 } },
+      { key: 'shoot_enemy', type: 'sound', uri: require('../../assets/sounds/sfx/shoot_enemy.mp3'), soundOptions: { volume: 0.5 } },
+      { key: 'bomb_activate', type: 'sound', uri: require('../../assets/sounds/sfx/bomb_activate.mp3'), soundOptions: { volume: 0.9 } },
+      // Explosion sounds
+      { key: 'explosion_small', type: 'sound', uri: require('../../assets/sounds/sfx/explosion_small.mp3'), soundOptions: { volume: 0.7 } },
+      { key: 'explosion_medium', type: 'sound', uri: require('../../assets/sounds/sfx/explosion_medium.mp3'), soundOptions: { volume: 0.8 } },
+      { key: 'explosion_large', type: 'sound', uri: require('../../assets/sounds/sfx/explosion_large.mp3'), soundOptions: { volume: 0.9 } },
+      { key: 'explosion_boss', type: 'sound', uri: require('../../assets/sounds/sfx/explosion_boss.mp3'), soundOptions: { volume: 1.0 } },
+      // Hit sounds
+      { key: 'hit_player', type: 'sound', uri: require('../../assets/sounds/sfx/hit_player.mp3'), soundOptions: { volume: 0.8 } },
+      { key: 'hit_enemy', type: 'sound', uri: require('../../assets/sounds/sfx/hit_enemy.mp3'), soundOptions: { volume: 0.6 } },
+      // UI/Alert sounds
+      { key: 'alert', type: 'sound', uri: require('../../assets/sounds/sfx/alert.mp3'), soundOptions: { volume: 0.6 } },
+      { key: 'boss_warning', type: 'sound', uri: require('../../assets/sounds/sfx/boss_warning.mp3'), soundOptions: { volume: 0.8 } },
+      { key: 'powerup_collect', type: 'sound', uri: require('../../assets/sounds/sfx/powerup_collect.mp3'), soundOptions: { volume: 0.6 } },
+      // Legacy sounds (kept for compatibility)
+      { key: 'player_hit', type: 'sound', uri: require('../../assets/sounds/sfx/hit_player.mp3'), soundOptions: { volume: 0.7 } },
       { key: 'game_over', type: 'sound', uri: require('../../assets/sounds/game_over.mp3'), soundOptions: { volume: 0.6 } },
       // Background music
       { key: 'bgm_menu', type: 'sound', uri: require('../../assets/sounds/bgm_menu.mp3'), soundOptions: { volume: 0.4, loop: true } },

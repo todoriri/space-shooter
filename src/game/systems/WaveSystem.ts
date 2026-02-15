@@ -5,7 +5,8 @@ import { GameEntity, EntityType, EnemyType } from '../../types';
 import { createEnemyWave, createSingleEnemyForWave, createEnemyEntity } from '../entities/Enemy';
 import { createRandomPowerUpDrop } from '../entities/PowerUp';
 
-// Wave configuration
+// Initial spawn delay for warm-up (ms) - allows game loop to stabilize
+const INITIAL_WARMUP_DELAY = 1500; // 1.5 seconds before first enemy spawns
 export interface WaveConfig {
   waveNumber: number;
   enemyCount: number;
@@ -244,7 +245,9 @@ const handleWaveSpawning = (
 ) => {
   // Initialize last spawn time if not set
   if (waveState.lastSpawnTime === 0) {
-    waveState.lastSpawnTime = currentTime;
+    // Add warm-up delay for first wave to allow game loop to stabilize
+    const warmupDelay = waveState.currentWave === 1 ? INITIAL_WARMUP_DELAY : 0;
+    waveState.lastSpawnTime = currentTime + warmupDelay;
 
     // Persist to entity component
     const waveManager = entities['waveManager']?.components?.waveManager;
@@ -262,7 +265,7 @@ const handleWaveSpawning = (
     // Chance to spawn a flock in later waves
     if (waveConfig.waveNumber > 1 && Math.random() < 0.3) {
       newEnemies = spawnFlock(waveConfig, entities, dispatch);
-      console.log(`[WaveSystem] Spawning Hover Flock of ${newEnemies.length}`);
+      if (__DEV__) console.log(`[WaveSystem] Spawning Hover Flock of ${newEnemies.length}`);
     } else {
       // Spawn single enemy
       const enemy = spawnEnemy(waveConfig, entities, dispatch);
@@ -401,9 +404,9 @@ const completeWave = (waveState: WaveState, entities: Record<string, GameEntity>
   if (waveManager) {
     waveManager.waveComplete = true;
     waveManager.intermissionTimer = 3000; // 3 seconds intermission
-    console.log(`Wave ${waveState.currentWave} marked as complete, starting intermission`);
+    if (__DEV__) console.log(`Wave ${waveState.currentWave} marked as complete, starting intermission`);
   } else {
-    console.error('WaveManager missing during completeWave');
+    if (__DEV__) console.error('WaveManager missing during completeWave');
   }
 
   // Dispatch wave complete event
@@ -436,7 +439,7 @@ const startNextWaveInternal = (
   const nextWave = lastWaveState.currentWave + 1;
   const waveConfig = getWaveConfig(nextWave);
 
-  console.log(`Starting Wave ${nextWave}`);
+  if (__DEV__) console.log(`Starting Wave ${nextWave}`);
 
   // We do NOT clear entities here. The GameEngine/ECS handles cleanup of dead entities.
   // We just reset the WaveManager state.

@@ -11,6 +11,7 @@ const INITIAL_GAME_STATE: GameStateType = {
   gameTime: 0,
   difficulty: 'medium',
   playerPowerUps: [],
+  lastSpawnTime: 0, // Added initialization
 };
 
 export const useGameState = () => {

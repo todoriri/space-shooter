@@ -4,6 +4,9 @@
 import { GameEntity, EntityType, Position, Renderable } from '../../types';
 import { EntityPool } from '../../utils/EntityPool';
 
+// Performance configuration
+const MAX_ACTIVE_PARTICLES = 30; // Cap to maintain 60 FPS
+let activeParticleCount = 0;
 
 // Particle types
 export enum ParticleType {
@@ -65,8 +68,17 @@ const particlePool = new EntityPool<ParticleEntity>(
 // Helper to release particle
 const releaseParticle = (particle: ParticleEntity) => {
   particle.active = false;
+  activeParticleCount = Math.max(0, activeParticleCount - 1);
   particlePool.release(particle);
 };
+
+// Check if we can create more particles
+const canCreateParticle = (): boolean => {
+  return activeParticleCount < MAX_ACTIVE_PARTICLES;
+};
+
+// Helper to get current particle count (for debugging/monitoring)
+export const getActiveParticleCount = (): number => activeParticleCount;
 
 
 
@@ -259,11 +271,16 @@ const updateParticleAppearance = (particle: ParticleEntity, deltaTime: number) =
 export const createExplosionEffect = (
   position: Position,
   size: number = 50,
-  particleCount: number = 20
+  particleCount: number = 10 // Reduced from 20 for performance
 ): ParticleEntity[] => {
   const particles: ParticleEntity[] = [];
 
-  for (let i = 0; i < particleCount; i++) {
+  // Limit particles based on current count
+  const availableSlots = MAX_ACTIVE_PARTICLES - activeParticleCount;
+  const actualCount = Math.min(particleCount, availableSlots, 10); // Max 10 per explosion
+
+  for (let i = 0; i < actualCount; i++) {
+    if (!canCreateParticle()) break;
     const angle = Math.random() * Math.PI * 2;
     const speed = 50 + Math.random() * 150;
     const lifetime = 0.5 + Math.random() * 1.0;
@@ -306,6 +323,7 @@ export const createExplosionEffect = (
     (particle as any).fadeOut = true;
     (particle as any).gravity = true;
 
+    activeParticleCount++;
     particles.push(particle);
   }
 
@@ -348,6 +366,7 @@ export const createBombEffect = (
   };
 
   const blastParams = particle;
+  activeParticleCount++;
 
   const particles = [blastParams];
 
@@ -361,6 +380,7 @@ export const createBombEffect = (
   innerShockwave.maxAge = duration / 1500; // Faster
   innerShockwave.initialSize = screenSize.width * 0.4;
   innerShockwave.initialColor = '#FFFF00';
+  activeParticleCount++;
   innerShockwave.components = {
     position: {
       x: screenSize.width / 2,
@@ -378,12 +398,13 @@ export const createBombEffect = (
   };
   particles.push(innerShockwave);
 
-  // 3. Debris particles
-  const debrisCount = 16;
+  // 3. Debris particles (reduced from 16 to 8 for performance)
+  const debrisCount = 8;
   for (let i = 0; i < debrisCount; i++) {
     const angle = (Math.PI * 2 * i) / debrisCount;
     const debris = particlePool.acquire();
     debris.id = `bomb_debris_${Date.now()}_${i}`;
+    debris.type = EntityType.PARTICLE;
     debris.active = true;
     debris.tags = ['particle', 'debris'];
     debris.particleType = ParticleType.EXPLOSION; // Reuse explosion behavior
@@ -412,6 +433,7 @@ export const createBombEffect = (
     };
     // Custom fade behavior
     (debris as any).fadeOut = true;
+    activeParticleCount++;
     particles.push(debris);
   }
 

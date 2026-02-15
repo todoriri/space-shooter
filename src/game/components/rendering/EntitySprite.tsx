@@ -58,11 +58,12 @@ const EntitySpriteComponent: React.FC<EntitySpriteProps> = ({
 
     // Apply color only if NOT using a sprite (or as tint?)
     // For now, only player has a sprite.
+    // Optimize style array creation
     const containerStyle = [
         baseStyle,
         getStyle(),
-        type !== EntityType.PLAYER ? { backgroundColor: color } : {}, // Only apply color if not player
-    ];
+        type !== EntityType.PLAYER ? { backgroundColor: color } : null,
+    ].filter(Boolean) as any;
 
     // Render Player Ship Sprite
     if (type === EntityType.PLAYER) {

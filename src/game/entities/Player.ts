@@ -60,30 +60,7 @@ export const createPlayerEntity = (initialPosition: Position = { x: 200, y: 600 
   };
 };
 
-/**
- * Updates player shooting cooldown
- * @param player - Player entity to update
- * @param deltaTime - Time since last update in seconds
- * @returns Updated player entity
- */
-export const updatePlayerShooting = (player: GameEntity, deltaTime: number): GameEntity => {
-  if (!player.components.player) return player;
 
-  const playerComp = player.components.player;
-
-  // Update cooldown timer
-  if (playerComp.lastShotTime > 0) {
-    playerComp.lastShotTime = Math.max(0, playerComp.lastShotTime - deltaTime);
-  }
-
-  return {
-    ...player,
-    components: {
-      ...player.components,
-      player: playerComp,
-    },
-  };
-};
 
 /**
  * Applies damage to the player
