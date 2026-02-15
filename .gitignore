@@ -44,3 +44,4 @@ yarn-error.*
 *_diff.txt
 *.pyc
 __pycache__/
+temp_logs/

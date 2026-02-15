@@ -7,6 +7,7 @@ import { checkAABBCollision, getBoundingBox, SpatialGrid } from '../../utils/col
 import { releaseBullet } from '../entities/Bullet';
 import { releaseEnemy } from '../entities/Enemy';
 import { createRandomPowerUpDrop } from '../entities/PowerUp';
+import { addPowerUpToPlayer } from './PowerUpSystem';
 
 // Collision types
 export type CollisionType =
@@ -287,6 +288,9 @@ const handlePlayerPowerUpCollision = (
 
   // Deactivate power-up entity
   powerUpEntity.active = false;
+
+  // Apply power-up to player
+  addPowerUpToPlayer(playerEntity, powerUpComp.type, powerUpComp.duration);
 
   // Dispatch event
   dispatch({

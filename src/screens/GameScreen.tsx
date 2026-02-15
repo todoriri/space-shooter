@@ -148,10 +148,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
             <Text style={styles.waveValue}>{gameState.currentWave}</Text>
           </View>
 
-          {/* Pause Button */}
-          <TouchableOpacity style={styles.pauseButton} onPress={handlePause}>
-            <Text style={styles.pauseButtonText}>⏸️</Text>
-          </TouchableOpacity>
+          {/* Pause Button removed - handled by TouchControls */}
         </View>
       )}
 

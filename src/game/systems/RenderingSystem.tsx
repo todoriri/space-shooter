@@ -169,7 +169,7 @@ const renderPlayer = (entity: GameEntity, style: any): JSX.Element => {
   }
 
   return (
-    <View key={entity.id} style={[style, styles.container]}>
+    <View key={entity.id} style={[style, styles.container, { backgroundColor: 'transparent' }]}>
       <EntitySprite
         type={EntityType.PLAYER}
         width={style.width}

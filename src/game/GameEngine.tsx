@@ -374,42 +374,7 @@ export const SpaceShooterGame = React.forwardRef<any, SpaceShooterGameProps>(({
         renderer={RenderingSystem}
       />
 
-      {/* Game UI overlay */}
-      <View style={styles.uiOverlay} pointerEvents="box-none">
-        {/* Score display */}
-        <View style={styles.scoreContainer}>
-          <Text style={styles.scoreLabel}>SCORE</Text>
-          <Text style={styles.scoreValue}>{gameState.score}</Text>
-        </View>
-
-        {/* Lives display */}
-        <View style={styles.livesContainer}>
-          {Array.from({ length: gameState.lives }).map((_, index) => (
-            <View key={index} style={styles.lifeIcon} />
-          ))}
-        </View>
-
-        {/* Wave display */}
-        <View style={styles.waveContainer}>
-          <Text style={styles.waveLabel}>WAVE</Text>
-          <Text style={styles.waveValue}>{gameState.currentWave}</Text>
-        </View>
-
-
-        {/* Dev Tools */}
-        {__DEV__ && (
-          <View style={styles.devButton} pointerEvents="auto">
-            <TouchableOpacity
-              onPress={toggleStressTest}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.devText, isStressTestEnabled && styles.devTextActive]}>
-                STRESS {isStressTestEnabled ? 'ON' : 'OFF'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
+      {/* UI Overlay removed - handled by GameScreen */}
 
       {/* Touch Controls */}
       <TouchControls
